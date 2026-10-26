@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="校园社团活动发布、审核与报名平台">
+  <title>集会 · 校园社团活动</title>
+  <link rel="stylesheet" href="/styles.css">
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/" aria-label="集会首页"><span class="brand-mark">集</span><span>集会 <small>CAMPUS CLUBS</small></span></a>
+    <div class="account"><span id="identity">校园社团活动平台</span><button id="login-open" class="button outline">登录</button><button id="logout" class="button outline" hidden>退出</button></div>
+  </header>
+  <div class="shell">
+    <aside class="sidebar">
+      <p class="nav-label">校园生活</p>
+      <nav id="navigation" aria-label="主要导航"></nav>
+      <div class="sidebar-note"><span class="status-dot"></span> 本地开发版 v0.1<p>发布 · 审核 · 报名</p></div>
+    </aside>
+    <main id="main">
+      <section class="hero">
+        <div><p class="eyebrow">FIND YOUR PEOPLE</p><h1>让兴趣，在校园相遇。</h1><p>发现一场活动，认识一群同好。<br>你的下一段校园故事，从这里开始。</p><a class="button dark" href="#workspace">探索活动 <span>↗</span></a></div>
+        <div class="hero-art" aria-hidden="true"><span class="orbit orbit-one"></span><span class="orbit orbit-two"></span><span class="art-label label-one">音乐 / MUSIC</span><span class="art-label label-two">运动 / SPORTS</span><span class="art-label label-three">创造 / CREATE</span><span class="art-center">一起<br>发生。</span><span class="art-star">✳</span></div>
+      </section>
+      <section id="workspace" class="workspace" aria-live="polite"></section>
+      <footer>集会 CAMPUS CLUBS <span>西南交通大学 · 社团活动平台</span></footer>
+    </main>
+  </div>
+  <dialog id="login-dialog">
+    <form id="login-form" class="stack">
+      <div class="section-head"><h2>欢迎回到集会</h2><button type="button" class="icon-button" id="login-close" aria-label="关闭">×</button></div>
+      <p class="muted">使用你的账号，进入对应的工作空间。</p>
+      <label>账号<input name="username" autocomplete="username" required></label>
+      <label>密码<input name="password" type="password" autocomplete="current-password" required></label>
+      <p id="login-error" class="error" role="alert"></p>
+      <button class="button dark" type="submit">登录</button>
+      <details id="demo-help" hidden><summary>本地演示账号</summary><p class="muted">密码均为 demo1234。点击填入账号后，再确认登录。</p><div class="demo-accounts"><button type="button" data-demo="student">学生</button><button type="button" data-demo="club">社团</button><button type="button" data-demo="teacher">老师</button><button type="button" data-demo="admin">管理员</button></div></details>
+    </form>
+  </dialog>
+  <dialog id="detail-dialog"><div id="detail-content"></div><button class="button outline" id="detail-close">关闭</button></dialog>
+  <div id="toast" role="status" hidden></div>
+</body>
+</html>

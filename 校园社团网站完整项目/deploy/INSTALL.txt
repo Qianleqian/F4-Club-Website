@@ -1,0 +1,27 @@
+Campus Clubs - server first installation
+
+1. Upload campus-club-deploy.tar.gz to /home/admin using Workbench file management.
+2. In the server Shell run:
+
+   cd ~
+   tar -xzf campus-club-deploy.tar.gz
+   sudo bash campus-club-deploy/install-server.sh
+
+The installer checks for existing installation paths and port conflicts. It uses an
+existing Java 17+ or installs Java 17 with apt/dnf/yum. It creates a separate
+systemd service and data directory, generates separate initial passwords, and
+opens TCP 8080 in an already-active OS firewall. Existing Nginx sites and their
+80/443 listeners are left in place.
+
+After READY, allow TCP 8080 in the Alibaba Cloud instance firewall and visit:
+http://47.109.153.19:8080/
+
+For passwords, privately run sudo cat /etc/campus-club.env. The usernames are:
+student, club, teacher, admin. Do not send the password output in screenshots/chat.
+
+This provides initial HTTP test access. Domain routing and HTTPS can be configured
+after the existing Baota sites and domain are confirmed. The archive includes the
+Java application and its libraries; no cloud resources are purchased by this file.
+
+This installer is for first installation, not overwriting or upgrading an existing
+installation. For errors send the installer error output, excluding passwords.

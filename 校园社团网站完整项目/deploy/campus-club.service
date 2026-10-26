@@ -1,0 +1,19 @@
+[Unit]
+Description=Campus Clubs Kotlin website
+After=network.target
+
+[Service]
+Type=simple
+User=campus
+Group=campus
+WorkingDirectory=/opt/campus-club
+Environment=HOST=127.0.0.1
+Environment=PORT=8080
+Environment=DATA_FILE=/var/lib/campus-club/state.json
+Environment=JAVA_OPTS=-Xmx512m
+ExecStart=/opt/campus-club/bin/campus-club
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
