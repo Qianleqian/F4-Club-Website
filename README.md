@@ -2,6 +2,10 @@
 
 校园社团活动发布与报名网站，Kotlin/Ktor 本地开发基础版 v0.1。
 
+## 四人协作
+
+代码位于仓库根目录。`main` 为基础版，四位成员分别使用 `feature/student`、`feature/club`、`feature/teacher`、`feature/admin`。每条分支均含完整项目。详细分工、运行和 PR 流程见 [四人协作说明](docs/07-team-collaboration.md)。
+
 ## 当前可以演示的流程
 
 社团账号提交活动，老师通过审核后活动公开，学生报名并查看记录，社团查看报名名单。管理员可以创建账号、分配角色、关联社团并启用或禁用账号。所有业务由 Kotlin 后端处理，刷新网页或重启服务器后业务数据仍保留。
@@ -94,4 +98,4 @@ $env:HOST='0.0.0.0'
 2. 使用 [需求调查和每周记录模板](docs/04-research-and-portfolio.md) 收集真实反馈。
 3. 对照 [需求与验收清单](docs/02-requirements.md) 选择下一项功能。
 4. 阅读 [架构与接口约定](docs/03-architecture.md) 后再修改接口与数据结构。
-5. 将代码推到你们自己的 GitHub 仓库，Wiki 中整理这些文档及会议记录。当前没有创建远程仓库或提交代码。
+5. 将代码推到你们自己的 GitHub 仓库，Wiki 中整理这些文档及会议记录。仓库已建立，四人协作方式见 [协作说明](docs/07-team-collaboration.md)。
