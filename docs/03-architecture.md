@@ -37,9 +37,11 @@ stateDiagram-v2
     PENDING --> CANCELLED: 社团取消
     APPROVED --> CANCELLED: 社团取消
     REJECTED --> CANCELLED: 社团取消
+    REJECTED --> PENDING: 编辑后重提
+    APPROVED --> PENDING: 编辑后重新审核
 ```
 
-驳回后的修改重提和已发布后的修改尚未实现，后续应补充状态转换和验收测试。取消不删除报名历史，学生可看到活动已取消。报名截止和满员由时间与人数动态判断，不额外保存成审核状态。
+驳回后的修改重提及已发布活动修改均转为待审核，已有报名保留；相关学生收到站内通知。取消不删除报名历史，学生可看到活动已取消。报名截止和满员由时间与人数动态判断，不额外保存成审核状态。
 
 ## API
 
@@ -47,6 +49,12 @@ stateDiagram-v2
 
 | 方法 | 路径 | 权限 | 用途 |
 |---|---|---|---|
+| GET | /api/posts | 公开 | 已审核公告 |
+| GET / POST | /api/club/posts | 社团负责人 | 查看、创建公告 |
+| PUT | /api/club/posts/{id} | 所属社团负责人 | 修改公告并重新审核 |
+| GET / POST | /api/teacher/posts、/api/teacher/posts/{id}/review | 教师 | 查看及审核待发布公告 |
+| GET | /api/teacher/reviews、/api/admin/reviews、/api/club/reviews | 教师、管理员、所属社团 | 审核记录 |
+| PATCH | /api/student/registrations/{id}/reminder | 报名学生本人 | 设置或关闭站内提醒 |
 | GET | /api/health | 公开 | 本地健康检查 |
 | POST | /api/auth/login | 公开 | 使用 username、password 登录 |
 | POST | /api/auth/logout | 公开 | 清除登录 Cookie |
@@ -61,6 +69,15 @@ stateDiagram-v2
 | POST | /api/club/activities/{id}/cancel | 所属社团工作人员 | 取消活动 |
 | GET | /api/teacher/pending | 老师 | 待审核活动 |
 | POST | /api/teacher/activities/{id}/review | 老师 | approved、comment 审核结论 |
+| PUT | /api/club/activities/{id} | 所属社团工作人员 | 编辑并重新提交审核 |
+| GET | /api/activities/{id}/history | 已报名学生、所属社团、教师、管理员 | 查看修改记录 |
+| GET / PATCH | /api/messages、/api/messages/{id}/read | 已登录 | 查看消息、标记已读 |
+| GET / POST | /api/club/applications | 社团工作人员 | 查看及提交社团申请 |
+| GET / POST | /api/teacher/club-applications、/api/teacher/club-applications/{id}/review | 教师 | 查看和审核社团申请 |
+| GET | /api/teacher/staff、/api/admin/staff | 教师、管理员 | 负责人名单 |
+| GET | /api/teacher/approved | 教师 | 已通过活动 |
+| PATCH | /api/teacher/activities/{id}/end-time | 教师 | 设置结束时间 |
+| GET | /api/admin/activities、/api/admin/activities/{id}/participants | 管理员 | 全部活动与报名名单 |
 | GET | /api/admin/users | 管理员 | 账号列表 |
 | POST | /api/admin/users | 管理员 | 创建账号 |
 | PATCH | /api/admin/users/{id}/enabled | 管理员 | 修改 enabled |
@@ -83,8 +100,6 @@ stateDiagram-v2
 
 这些路径仅供讨论，当前不存在，不要直接当作可用 API：
 
-- 活动编辑：PATCH /api/club/activities/{id}，先确认哪些字段变更触发重新审核。
-- 驳回重提：POST /api/club/activities/{id}/resubmit。
-- 报名二维码：GET /api/activities/{id}/qr，二维码内容为可访问的活动详情/报名链接。
-- 提醒设置：PATCH /api/student/registrations/{id}/reminder，先确定提醒的交付方式。
-- 公告模块：/api/club/posts，需要先确认新闻公告的字段与审核范围。
+- 二维码在浏览器中通过本地 qrcodejs 生成，链接格式为 `/?activity={id}`。
+- 提醒由服务端定期检查并写入站内消息，服务器须在提醒窗口内运行。
+- 公告提交及修改后需由教师审核，只有审核通过后公开。
