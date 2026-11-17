@@ -6,12 +6,13 @@
   <meta name="description" content="校园社团活动发布、审核与报名平台">
   <title>集会 · 校园社团活动</title>
   <link rel="stylesheet" href="/styles.css">
+  <script src="/qrcode.min.js" defer></script>
   <script src="/app.js" defer></script>
 </head>
 <body>
   <header class="topbar">
     <a class="brand" href="/" aria-label="集会首页"><span class="brand-mark">集</span><span>集会 <small>CAMPUS CLUBS</small></span></a>
-    <div class="account"><span id="identity">校园社团活动平台</span><button id="login-open" class="button outline">登录</button><button id="logout" class="button outline" hidden>退出</button></div>
+    <div class="account"><details><summary>使用说明</summary><p>学生可浏览和报名活动；社团负责人提交活动；老师审核；管理员管理账号。请登录对应角色使用。</p></details><span id="identity">校园社团活动平台</span><button id="login-open" class="button outline">登录</button><button id="logout" class="button outline" hidden>退出</button></div>
   </header>
   <div class="shell">
     <aside class="sidebar">

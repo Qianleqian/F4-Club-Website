@@ -19,6 +19,9 @@ import io.ktor.server.routing.*
 import io.ktor.server.http.content.*
 import io.ktor.server.sessions.*
 import kotlinx.serialization.SerializationException
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import java.nio.file.Path
 import java.security.SecureRandom
@@ -33,6 +36,13 @@ fun Application.campusModule(
     repository: LocalRepository = LocalRepository(Path.of(System.getenv("DATA_FILE") ?: "data/state.json"))
 ) {
     val service = CampusService(repository)
+    launch {
+        while (isActive) {
+            try { service.processReminders() }
+            catch (error: Exception) { log.error("Could not process reminders", error) }
+            delay(60_000)
+        }
+    }
     install(ContentNegotiation) { json(Json { encodeDefaults = true }) }
     install(Sessions) {
         cookie<LoginSession>("campus_session") {
