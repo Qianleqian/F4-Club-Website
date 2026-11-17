@@ -31,7 +31,9 @@ class LocalRepository(
 
     @Synchronized fun <T> change(block: (State) -> T): T {
         val next = State(state.users.toMutableList(), state.clubs.toMutableList(),
-            state.activities.toMutableList(), state.registrations.toMutableList())
+            state.activities.toMutableList(), state.registrations.toMutableList(),
+            state.notifications.toMutableList(), state.history.toMutableList(), state.clubApplications.toMutableList(),
+            state.reminders.toMutableList(), state.posts.toMutableList(), state.reviews.toMutableList())
         val result = block(next)
         save(next)
         state = next
