@@ -19,6 +19,10 @@ fun Route.authRoutes(service: CampusService) {
     }
     post("/api/auth/logout") { call.sessions.clear<LoginSession>(); call.respond(Message("已退出")) }
     get("/api/auth/me") { call.respond(service.current(call.userId())) }
+    get("/api/messages") { call.respond(service.messages(call.userId())) }
+    patch("/api/messages/{id}/read") { call.respond(service.markRead(call.userId(), call.recordId())) }
+    get("/api/activities/{id}/history") { call.respond(service.history(call.userId(), call.recordId())) }
+    get("/api/posts") { call.respond(service.publicPosts()) }
     get("/api/clubs") { call.respond(service.clubs()) }
-    get("/api/activities") { call.respond(service.published(call.request.queryParameters["q"].orEmpty())) }
+    get("/api/activities") { call.respond(service.published(call.request.queryParameters["q"].orEmpty(), call.request.queryParameters["category"].orEmpty())) }
 }

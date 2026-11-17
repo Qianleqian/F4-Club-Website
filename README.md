@@ -1,6 +1,6 @@
 # 集会 Campus Clubs
 
-校园社团活动发布与报名网站，Kotlin/Ktor 本地开发基础版 v0.1。
+校园社团活动发布与报名网站，Kotlin/Ktor 本地开发版。2026-11-17 的后续规划增量见 [功能与验证说明](docs/08-development-update.md)。
 
 ## 四人协作
 
@@ -10,13 +10,13 @@
 
 社团账号提交活动，老师通过审核后活动公开，学生报名并查看记录，社团查看报名名单。管理员可以创建账号、分配角色、关联社团并启用或禁用账号。所有业务由 Kotlin 后端处理，刷新网页或重启服务器后业务数据仍保留。
 
-这是用于继续开发的基础版本。它尚未完成原始项目说明中的全部功能，差异详见 [需求清单](docs/02-requirements.md)。
+新增活动分类与时间筛选、二维码与海报、站内消息、修改记录、社团申请及教师审批。并支持独立新闻公告的提交、教师审核和公开展示，以及已报名活动的站内定时提醒。详见 [需求清单](docs/02-requirements.md) 与 [功能与验证说明](docs/08-development-update.md)。
 
 ## 启动
 
 需要 JDK 17 或更高版本及首次下载依赖所需的网络。项目带 Gradle Wrapper，无需自行安装 Gradle。
 
-Windows：双击 `start-local.bat`。该脚本优先使用 JAVA_HOME，否则尝试查找用户 `.jdks` 中的 JDK。
+Windows：从 GitHub 克隆后双击 `start-local.bat` 运行；单独交付的完整压缩包包含预构建运行文件，也可双击 `start-runtime.bat`。两种方式均需 Java 17 或更高版本；修改源码后请使用 `start-local.bat` 重新构建运行。该脚本优先使用 JAVA_HOME，否则尝试查找用户 `.jdks` 中的 JDK。
 
 也可以在 IntelliJ IDEA 中打开本文件所在文件夹，选择可用的 JDK 作为 Gradle JVM，同步项目后运行 `ApplicationKt`。
 
@@ -63,7 +63,7 @@ data/state.json               首次运行生成，不进入 Git
 ## 数据和技术边界
 
 - 技术版本固定在 `build.gradle.kts` 与 `gradle/wrapper/gradle-wrapper.properties`。Kotlin 2.3.21、Ktor 3.4.3、Gradle 9.4.1，输出 Java 17 字节码。
-- 网页使用 HTML/CSS/JavaScript，核心业务使用 Kotlin。没有 Node.js、前端构建工具或云服务依赖。
+- 网页使用 HTML/CSS/JavaScript，核心业务使用 Kotlin。二维码由项目内附带的 MIT 许可 qrcodejs 生成，无需外部二维码服务；正常运行不依赖 Node.js 或云服务。
 - 原 spec 允许本地文件。这里选 JSON 保存多行简介和关联记录，通过 Kotlin Serialization 读写；若课程后续限定 CSV，只需替换 repository 层。
 - 一个账号在 v0.1 中只有一个角色。社团人员只能访问所属社团的数据。多角色账号留到后续讨论。
 - 报名检查和写入在同一把锁内完成，防止单个服务进程内重复报名和超额。当前文件存储仅支持一个服务进程。
