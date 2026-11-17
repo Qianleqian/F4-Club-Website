@@ -51,7 +51,7 @@ If conflicts appear, resolve the affected code with its owner and rerun relevant
 
 ## Scope and status
 
-The baseline already contains the main registration, review and account-management paths. Full acceptance still needs checking. Filters, QR access, editing, resubmission, review history, notifications and additional administrator views are planned or incomplete. Role branch task notes describe the next work; creating a branch does not implement those features.
+The baseline already contains the main registration, review and account-management paths. Full acceptance still needs checking. The local increment implements filters, QR sharing, editing and resubmission, activity change history, basic in-app notifications and administrator views. See [current implementation](08-development-update.md); the role branches include this shared implementation alongside their own task notes. Role branch task notes describe the next work; creating a branch does not implement those features.
 
 For changes to approved activities, agree the review/version policy between Club and Teacher before implementation; notify students when changes take effect. Teachers retain approval/rejection responsibility; administrator oversight is read-only.
 
