@@ -1,6 +1,6 @@
 # 集会 Campus Clubs
 
-校园社团活动发布与报名网站，Kotlin/Ktor 本地开发版。2026-11-17 的后续规划增量见 [功能与验证说明](docs/08-development-update.md)。
+校园社团活动发布与报名网站，Kotlin/Ktor 本地开发版。2026-11-17 的后续规划增量见 [功能与验证说明](docs/08-development-update.md)，2026-11-20 的网站改进及测试见 [Week 8 和 Week 9 改进日志](docs/09-week8-week9-website-log.md)。
 
 ## 四人协作
 
