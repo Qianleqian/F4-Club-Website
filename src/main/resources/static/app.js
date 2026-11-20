@@ -26,11 +26,11 @@ function navigation() {
   if (user?.role === 'CLUB_STAFF') tabs.push(['club', '▤', '社团活动'], ['create', '+', '创建活动'], ['club-application', '+', '申请新社团'], ['club-posts', '▤', '管理公告'], ['reviews', '▤', '审核记录']);
   if (user?.role === 'TEACHER') tabs.push(['review', '✓', '审核活动'], ['approved', '▤', '已通过活动'], ['club-review', '✓', '社团申请'], ['staff', '▤', '负责人名单'], ['reviews', '▤', '审核记录'], ['review-posts', '✓', '公告审核']);
   if (user?.role === 'ADMIN') tabs.push(['accounts', '▤', '账号管理'], ['admin-events', '▤', '全部活动'], ['staff', '▤', '负责人名单'], ['reviews', '▤', '审核记录'], ['new-user', '+', '创建账号']);
-  $('#navigation').innerHTML = tabs.map(([key, icon, label]) => `<button data-tab="${key}" class="${tab === key ? 'active' : ''}" ${tab === key ? 'aria-current="page"' : ''}><span class="nav-icon">${icon}</span>${label}</button>`).join('');
+  $('#navigation').innerHTML = tabs.map(([key, icon, label]) => `<button data-tab="${key}" class="${tab === key ? 'active' : ''}" ${tab === key ? 'aria-current="page"' : ''}><span class="nav-icon" aria-hidden="true">${icon}</span>${label}</button>`).join('');
   $('#identity').textContent = user ? `${user.name} · ${roles[user.role]}` : '校园社团活动平台';
   $('#login-open').hidden = Boolean(user); $('#logout').hidden = !user;
 }
-const title = (heading, subtitle = '') => `<div class="section-head"><h2>${heading}<small>${subtitle}</small></h2></div>`;
+const title = (heading, subtitle = '') => `<div class="section-head"><h2 tabindex="-1">${heading}<small>${subtitle}</small></h2></div>`;
 const empty = text => `<div class="empty">${text}</div>`;
 const badge = status => `<span class="badge ${status.toLowerCase()}">${statuses[status]}</span>`;
 
@@ -72,7 +72,7 @@ function activityForm(a = null) {
     <label>活动结束时间<input name="endsAt" type="datetime-local" value="${esc(a?.endsAt || '')}"></label>
     <label class="full">参加条件<input name="requirements" maxlength="500" value="${esc(a?.requirements || '本校在读学生')}" required></label>
     <p class="hint full">日期按北京时间填写。截止时间需要晚于当前时间，活动开始时间需要晚于截止时间。</p>
-    <div class="full"><button class="button dark" type="submit">提交审核</button></div></form>`;
+    <div class="full actions"><button class="button dark" type="submit">提交审核</button>${a ? '<button class="button outline" type="button" data-cancel-edit="club">放弃修改</button>' : ''}</div>${a ? '<p class="hint full">修改后活动将重新审核，已有报名保留。</p>' : ''}</form>`;
 }
 function userForm() {
   return title('创建账号', '为账号分配角色和所属社团') + `<form id="user-form" class="panel form-grid">
@@ -96,14 +96,14 @@ async function render(query = '') {
       const result = await api('/activities?q=' + encodeURIComponent(query));
       if (version !== renderVersion) return;
       events = result;
-      html = title('发现活动', `${events.length} 场已发布活动`) + `<form id="search-form" class="search"><input name="q" aria-label="搜索活动或社团" placeholder="搜索活动名称或社团…" value="${esc(query)}"><label>活动日期<input type="date" id="activity-date"></label><label>兴趣分类<select id="activity-category"><option value="">全部</option>${['音乐','运动','学术','艺术','公益','其他'].map(c => `<option>${c}</option>`).join('')}</select></label><button class="button dark">搜索</button></form>`;
+      html = title('发现活动', `${events.length} 场已发布活动`) + `<form id="search-form" class="search"><input name="q" aria-label="搜索活动或社团" placeholder="搜索活动名称或社团…" value="${esc(query)}"><label>活动日期<input type="date" id="activity-date"></label><label>兴趣分类<select id="activity-category"><option value="">全部</option>${['音乐','运动','学术','艺术','公益','其他'].map(c => `<option>${c}</option>`).join('')}</select></label><button class="button dark">搜索</button></form><p id="filter-summary" role="status"></p>`;
       html += events.length ? `<div class="grid">${events.map(v => card(v)).join('')}</div>` : empty('暂时没有符合条件的活动');
     } else if (tab === 'posts' || tab === 'club-posts' || tab === 'review-posts') {
       const mine = tab === 'club-posts', reviewing = tab === 'review-posts';
       postRows = await api(mine ? '/club/posts' : reviewing ? '/teacher/posts' : '/posts');
       if (version !== renderVersion) return;
       html = title(mine ? '管理社团公告' : reviewing ? '公告审核' : '社团公告', `${postRows.length} 条`);
-      if (mine) html += `<form id="post-form" class="panel stack"><h3>发布新公告</h3><label>标题<input name="title" minlength="2" maxlength="100" required></label><label>正文<textarea name="content" minlength="2" maxlength="5000" required></textarea></label><button class="button dark">提交教师审核</button></form>`;
+      if (mine) html += `<form id="post-form" class="panel stack"><h3>发布新公告</h3><label>标题<input name="title" minlength="2" maxlength="100" required></label><label>正文<textarea name="content" minlength="2" maxlength="5000" required></textarea></label><div class="actions"><button class="button dark">提交教师审核</button><button type="button" class="button outline" data-cancel-edit="club-posts" hidden>放弃修改</button></div><p class="hint">修改已发布公告后需要重新审核。</p></form>`;
       html += postRows.length ? postRows.map(v => `<article class="panel"><h3>${esc(v.post.title)}</h3><p>${esc(v.clubName)} · ${esc(v.creatorName)} · ${date(v.post.createdAt)}</p>${badge(v.post.status)}<p class="detail-description">${esc(v.post.content)}</p>${mine && v.post.reviewComment ? `<p>审核意见：${esc(v.post.reviewComment)}</p>` : ''}${mine ? `<button class="button outline" data-edit-post="${esc(v.post.id)}">编辑并重新送审</button>` : ''}${reviewing ? `<form class="post-review-form" data-id="${esc(v.post.id)}"><label>审核意见<textarea name="comment" maxlength="1000" placeholder="驳回时必须填写"></textarea></label><div class="actions"><button name="decision" value="approve" class="button dark">通过并发布</button><button name="decision" value="reject" class="button danger">驳回</button></div></form>` : ''}</article>`).join('') : empty('暂无公告');
     } else if (tab === 'reviews') {
       const path = user.role === 'TEACHER' ? '/teacher/reviews' : user.role === 'ADMIN' ? '/admin/reviews' : '/club/reviews';
@@ -152,26 +152,31 @@ async function render(query = '') {
     } else if (tab === 'accounts') {
       const rows = await api('/admin/users');
       if (version !== renderVersion) return;
-      html = title('账号管理', `${rows.length} 个账号`) + `<div class="panel"><label>搜索账号或姓名<input id="account-search" type="search" placeholder="输入账号或姓名"></label><label>角色分类<select id="account-filter"><option value="all">全部账号</option><option value="students">学生（含社团负责人）</option><option value="TEACHER">教师</option><option value="ADMIN">管理员</option></select></label></div><div class="panel table-wrap"><table><thead><tr><th>账号</th><th>姓名</th><th>角色</th><th>社团</th><th>状态</th><th>操作</th></tr></thead><tbody>${rows.map(r => `<tr data-role="${r.role}" data-search="${esc((r.username + ' ' + r.name).toLowerCase())}"><td>${esc(r.username)}</td><td>${esc(r.name)}</td><td>${roles[r.role]}</td><td>${esc(clubs.find(c => c.id === r.clubId)?.name || '—')}</td><td>${r.enabled ? '正常' : '已禁用'}</td><td><button class="button outline" data-enable="${r.id}" data-value="${!r.enabled}" ${r.id === user.id ? 'disabled' : ''}>${r.enabled ? '禁用' : '启用'}</button></td></tr>`).join('')}</tbody></table></div>`;
+      html = title('账号管理', `${rows.length} 个账号`) + `<div class="panel"><label>搜索账号或姓名<input id="account-search" type="search" placeholder="输入账号或姓名"></label><label>角色分类<select id="account-filter"><option value="all">全部账号</option><option value="students">学生（含社团负责人）</option><option value="TEACHER">教师</option><option value="ADMIN">管理员</option></select></label></div><p id="account-summary" role="status">显示 ${rows.length} 个账号</p><div class="panel table-wrap" role="region" aria-label="账号列表，可横向滚动" tabindex="0"><table><thead><tr><th scope="col">账号</th><th>姓名</th><th>角色</th><th>社团</th><th>状态</th><th>操作</th></tr></thead><tbody>${rows.map(r => `<tr data-role="${r.role}" data-search="${esc((r.username + ' ' + r.name).toLowerCase())}"><td>${esc(r.username)}</td><td>${esc(r.name)}</td><td>${roles[r.role]}</td><td>${esc(clubs.find(c => c.id === r.clubId)?.name || '—')}</td><td>${r.enabled ? '正常' : '已禁用'}</td><td><button class="button outline" data-enable="${r.id}" data-name="${esc(r.username)}" data-value="${!r.enabled}" aria-label="${r.enabled ? '禁用' : '启用'}账号 ${esc(r.username)}" ${r.id === user.id ? 'disabled' : ''}>${r.enabled ? '禁用' : '启用'}</button></td></tr>`).join('')}</tbody></table></div>`;
     }
-    if (version === renderVersion) root.innerHTML = html;
+    if (version === renderVersion) { root.innerHTML = html; if (tab === 'discover') filterActivities(); }
   } catch (error) {
     if (version === renderVersion) root.innerHTML = empty(esc(error.message));
   }
 }
 function filterActivities() {
   const day = $('#activity-date')?.value || '', category = $('#activity-category')?.value || '';
-  document.querySelectorAll('.grid article.card').forEach((element, index) => {
+  let visible = 0;
+  document.querySelectorAll('#workspace .grid article.card').forEach((element, index) => {
     element.hidden = Boolean((day && !events[index].activity.startsAt.startsWith(day)) || (category && events[index].activity.category !== category));
+    if (!element.hidden) visible++;
   });
+  const summary = $('#filter-summary');
+  if (summary) summary.textContent = visible ? `显示 ${visible} 场活动` : '没有符合条件的活动，请调整搜索或筛选条件。';
 }
+function showDetail() { const heading = $('#detail-content h2'); if (heading) heading.id = 'detail-title'; $('#detail-dialog').showModal(); }
 function openLogin() { $('#login-error').textContent = ''; $('#login-dialog').showModal(); }
 function details(id) {
   const v = events.find(v => v.activity.id === id); if (!v) return;
   const a = v.activity;
   $('#detail-content').innerHTML = `${badge(a.status)}<h2>${esc(a.title)}</h2><p class="muted">${esc(v.clubName)}</p><p class="detail-description">${esc(a.description)}</p><p>地点：${esc(a.location)}<br>参加条件：${esc(a.requirements)}<br>开始时间：${date(a.startsAt)}<br>报名截止：${date(a.deadline)}<br>人数：${v.registeredCount} / ${a.capacity}</p>`;
   if (a.status === 'APPROVED') $('#detail-content').insertAdjacentHTML('beforeend', user?.role === 'STUDENT' ? `<button class="button dark" data-register="${esc(a.id)}">报名参加</button>` : !user ? '<button class="button dark" data-login>登录后报名</button>' : '');
-  $('#detail-dialog').showModal();
+  showDetail();
 }
 let posterActivity = null;
 function shareActivity(id) {
@@ -181,7 +186,7 @@ function shareActivity(id) {
   const url = new URL('/', location.origin); url.searchParams.set('activity', id);
   $('#detail-content').innerHTML = `<h2>分享活动</h2><p>${esc(view.activity.title)}</p><p>活动链接：<a href="${esc(url.href)}">${esc(url.href)}</a></p><p>二维码使用当前网站地址；本机地址只能在本机访问。</p><div id="share-qr" aria-label="活动链接二维码"></div><button id="poster-download" class="button dark">下载活动海报</button>`;
   new QRCode($('#share-qr'), { text: url.href, width: 180, height: 180, correctLevel: QRCode.CorrectLevel.M });
-  $('#detail-dialog').showModal();
+  showDetail();
 }
 function downloadPoster() {
   if (!posterActivity) return;
@@ -199,20 +204,21 @@ function downloadPoster() {
 document.addEventListener('click', async event => {
   const button = event.target.closest('button'); if (!button) return;
   const d = button.dataset;
-  if (d.tab) { tab = d.tab; await render(); return; }
+  if (d.tab) { tab = d.tab; await render(); $('#workspace h2')?.focus(); return; }
   if ('login' in d || button.id === 'login-open') { if ($('#detail-dialog').open) $('#detail-dialog').close(); openLogin(); return; }
   if (button.id === 'login-close') { $('#login-dialog').close(); return; }
   if (button.id === 'detail-close') { $('#detail-dialog').close(); return; }
   if (d.demo) { $('#login-form').elements.username.value = d.demo; $('#login-form').elements.password.value = 'demo1234'; return; }
   if (d.detail) { details(d.detail); return; }
-  if (d.editPost) { const item = postRows.find(v => v.post.id === d.editPost); if (item) { const form = $('#post-form'); form.dataset.id = item.post.id; form.elements.title.value = item.post.title; form.elements.content.value = item.post.content; form.querySelector('h3').textContent = '编辑公告并重新送审'; form.scrollIntoView(); } return; }
+  if (d.editPost) { const item = postRows.find(v => v.post.id === d.editPost); if (item) { const form = $('#post-form'); form.dataset.id = item.post.id; form.elements.title.value = item.post.title; form.elements.content.value = item.post.content; form.querySelector('h3').textContent = '编辑公告并重新送审'; form.querySelector('[data-cancel-edit]').hidden = false; form.scrollIntoView(); form.elements.title.focus(); } return; }
   if (d.share) { shareActivity(d.share); return; }
+  if (d.cancelEdit) { await render(); $('#workspace h2')?.focus(); return; }
   if (d.history) {
-    try { const rows = await api(`/activities/${d.history}/history`); $('#detail-content').innerHTML = `<h2>活动修改记录</h2>` + (rows.length ? rows.map(r => `<p>${date(r.createdAt)}：${esc(r.summary)}</p>`).join('') : '<p>暂无修改记录</p>'); $('#detail-dialog').showModal(); } catch (error) { toast(error.message); } return;
+    try { const rows = await api(`/activities/${d.history}/history`); $('#detail-content').innerHTML = `<h2>活动修改记录</h2>` + (rows.length ? rows.map(r => `<p>${date(r.createdAt)}：${esc(r.summary)}</p>`).join('') : '<p>暂无修改记录</p>'); showDetail(); } catch (error) { toast(error.message); } return;
   }
   if (d.read) { try { await api(`/messages/${d.read}/read`, { method: 'PATCH' }); await render(); } catch (error) { toast(error.message); } return; }
   if (button.id === 'poster-download') { downloadPoster(); return; }
-  if (d.edit) { const found = events.find(v => v.activity.id === d.edit); if (found) $('#workspace').innerHTML = activityForm(found.activity); return; }
+  if (d.edit) { const found = events.find(v => v.activity.id === d.edit); if (found) { $('#workspace').innerHTML = activityForm(found.activity); $('#workspace h2')?.focus(); } return; }
   if (!(d.register || d.cancel || d.participants || d.adminParticipants || d.enable || button.id === 'logout')) return;
   button.disabled = true;
   try {
@@ -222,11 +228,11 @@ document.addEventListener('click', async event => {
       if (!confirm('确认取消此活动？已报名学生将看到“已取消”状态。')) return;
       await api(`/club/activities/${d.cancel}/cancel`, { method: 'POST' }); toast('活动已取消');
     }
-    if (d.enable) { await api(`/admin/users/${d.enable}/enabled`, { method: 'PATCH', body: { enabled: d.value === 'true' } }); toast('账号状态已更新'); }
+    if (d.enable) { if (!confirm(`确认${d.value === 'true' ? '启用' : '禁用'}账号 ${d.name}？`)) return; await api(`/admin/users/${d.enable}/enabled`, { method: 'PATCH', body: { enabled: d.value === 'true' } }); toast('账号状态已更新'); }
     if (d.participants || d.adminParticipants) {
       const rows = await api(d.adminParticipants ? `/admin/activities/${d.adminParticipants}/participants` : `/club/activities/${d.participants}/participants`);
       $('#detail-content').innerHTML = `<h2>报名名单</h2>${rows.length ? `<ul>${rows.map(r => `<li>${esc(r.student.name)}（${esc(r.student.username)}）<br><span class="muted">${date(r.registeredAt)}</span></li>`).join('')}</ul>` : '<p class="muted">暂时没有学生报名。</p>'}`;
-      $('#detail-dialog').showModal(); return;
+      showDetail(); return;
     }
     await render();
   } catch (error) { toast(error.message); }
@@ -234,10 +240,13 @@ document.addEventListener('click', async event => {
 });
 function filterAccounts() {
   const role = $('#account-filter')?.value || 'all', query = ($('#account-search')?.value || '').trim().toLowerCase();
+  let visible = 0;
   document.querySelectorAll('tr[data-role]').forEach(row => {
     const matchRole = role === 'all' || (role === 'students' ? ['STUDENT', 'CLUB_STAFF'].includes(row.dataset.role) : row.dataset.role === role);
     row.hidden = !matchRole || !row.dataset.search.includes(query);
+    if (!row.hidden) visible++;
   });
+  if ($('#account-summary')) $('#account-summary').textContent = visible ? `显示 ${visible} 个账号` : '没有符合条件的账号，请调整搜索或分类。';
 }
 document.addEventListener('input', event => { if (event.target.id === 'account-search') filterAccounts(); });
 document.addEventListener('change', event => {
@@ -249,7 +258,9 @@ document.addEventListener('submit', async event => {
   const form = event.target; event.preventDefault();
   const data = Object.fromEntries(new FormData(form));
   if (form.id === 'search-form') { const day = $('#activity-date').value, category = $('#activity-category').value; await render(data.q); if ($('#activity-date')) { $('#activity-date').value = day; $('#activity-category').value = category; filterActivities(); } return; }
-  const submit = event.submitter; if (submit) submit.disabled = true;
+  const submit = event.submitter;
+  if (form.matches('.review-form, .post-review-form, .club-review-form') && submit?.value === 'reject' && !data.comment.trim()) { toast('驳回时请填写审核意见'); form.elements.comment.focus(); return; }
+  if (submit) submit.disabled = true;
   try {
     if (form.id === 'login-form') {
       user = await api('/auth/login', { method: 'POST', body: data });
