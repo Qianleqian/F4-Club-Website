@@ -52,7 +52,8 @@ data class State(
     val clubApplications: MutableList<ClubApplication> = mutableListOf(),
     val reminders: MutableList<Reminder> = mutableListOf(),
     val posts: MutableList<ClubPost> = mutableListOf(),
-    val reviews: MutableList<ReviewRecord> = mutableListOf()
+    val reviews: MutableList<ReviewRecord> = mutableListOf(),
+    val accountApplications: MutableList<AccountApplication> = mutableListOf()
 )
 @Serializable data class LoginRequest(val username: String, val password: String)
 @Serializable data class LoginSession(val userId: String)
@@ -88,3 +89,14 @@ data class CreateUserRequest(
 @Serializable data class PostView(val post: ClubPost, val clubName: String, val creatorName: String)
 @Serializable data class ReviewRecord(val id: String, val kind: String, val targetId: String, val targetTitle: String,
     val clubId: String, val reviewerId: String, val reviewerName: String, val approved: Boolean, val comment: String, val reviewedAt: String)
+
+@Serializable enum class AccountApplicationStatus { PENDING, APPROVED, REJECTED }
+@Serializable data class RegisterRequest(val nickname: String, val password: String, val role: Role, val clubId: String? = null)
+@Serializable data class RegisterResult(val message: String, val requiresApproval: Boolean)
+@Serializable data class AccountApplication(val id: String, val nickname: String, val passwordHash: String,
+    val role: Role, val clubId: String? = null, val createdAt: String,
+    val status: AccountApplicationStatus = AccountApplicationStatus.PENDING,
+    val reviewerId: String? = null, val reviewComment: String = "", val reviewedAt: String? = null)
+@Serializable data class AccountApplicationView(val id: String, val nickname: String, val role: Role,
+    val clubId: String? = null, val clubName: String? = null, val createdAt: String)
+@Serializable data class AccountDecisionRequest(val approved: Boolean, val comment: String = "")
