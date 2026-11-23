@@ -31,14 +31,27 @@
     </main>
   </div>
   <dialog id="login-dialog" aria-labelledby="login-title">
+    <div class="section-head"><h2 id="login-title">登录</h2><button type="button" class="icon-button" id="login-close" aria-label="关闭">×</button></div>
+    <p id="auth-notice" role="status"></p>
     <form id="login-form" class="stack">
-      <div class="section-head"><h2 id="login-title">欢迎回到集会</h2><button type="button" class="icon-button" id="login-close" aria-label="关闭">×</button></div>
-      <p class="muted">使用你的账号，进入对应的工作空间。</p>
-      <label>账号<input name="username" autocomplete="username" required></label>
+      <p class="muted">使用账号或注册时的昵称和密码登录。</p>
+      <label>账号或昵称<input name="username" autocomplete="username" required></label>
       <label>密码<input name="password" type="password" autocomplete="current-password" required></label>
       <p id="login-error" class="error" role="alert"></p>
       <button class="button dark" type="submit">登录</button>
+      <button class="button outline" type="button" id="show-register">没有账号？注册</button>
       <details id="demo-help" hidden><summary>本地演示账号</summary><p class="muted">密码均为 demo1234。点击填入账号后，再确认登录。</p><div class="demo-accounts"><button type="button" data-demo="student">学生</button><button type="button" data-demo="club">社团</button><button type="button" data-demo="teacher">老师</button><button type="button" data-demo="admin">管理员</button></div></details>
+    </form>
+    <form id="register-form" class="stack" hidden>
+      <p class="muted">昵称将作为登录账号。学生注册后可登录；其他身份需管理员审核。</p>
+      <label>昵称<input name="nickname" minlength="2" maxlength="30" autocomplete="username" required></label>
+      <label>个人身份<select name="role" id="register-role" required><option value="STUDENT">Student（学生）</option><option value="CLUB_STAFF">Club holder（社团负责人）</option><option value="TEACHER">Teacher（教师）</option><option value="ADMIN">Admin（管理员）</option></select></label>
+      <label id="register-club-field" hidden>所属社团<select name="clubId" id="register-club"></select></label>
+      <label>设置密码<input name="password" type="password" minlength="8" maxlength="128" autocomplete="new-password" required></label>
+      <label>确认密码<input name="confirmPassword" type="password" minlength="8" maxlength="128" autocomplete="new-password" required></label>
+      <p id="register-error" class="error" role="alert"></p>
+      <button class="button dark" type="submit">提交注册</button>
+      <button class="button outline" type="button" id="show-login">已有账号？登录</button>
     </form>
   </dialog>
   <dialog id="detail-dialog" aria-labelledby="detail-title"><div id="detail-content"></div><button class="button outline" id="detail-close">关闭</button></dialog>
