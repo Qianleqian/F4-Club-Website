@@ -25,7 +25,7 @@ function navigation() {
   if (user?.role === 'STUDENT') tabs.push(['registered', '▤', '我的报名']);
   if (user?.role === 'CLUB_STAFF') tabs.push(['club', '▤', '社团活动'], ['create', '+', '创建活动'], ['club-application', '+', '申请新社团'], ['club-posts', '▤', '管理公告'], ['reviews', '▤', '审核记录']);
   if (user?.role === 'TEACHER') tabs.push(['review', '✓', '审核活动'], ['approved', '▤', '已通过活动'], ['club-review', '✓', '社团申请'], ['staff', '▤', '负责人名单'], ['reviews', '▤', '审核记录'], ['review-posts', '✓', '公告审核']);
-  if (user?.role === 'ADMIN') tabs.push(['accounts', '▤', '账号管理'], ['admin-events', '▤', '全部活动'], ['staff', '▤', '负责人名单'], ['reviews', '▤', '审核记录'], ['new-user', '+', '创建账号']);
+  if (user?.role === 'ADMIN') tabs.push(['accounts', '▤', '账号管理'], ['account-applications', '✓', '注册审核'], ['admin-events', '▤', '全部活动'], ['staff', '▤', '负责人名单'], ['reviews', '▤', '审核记录'], ['new-user', '+', '创建账号']);
   $('#navigation').innerHTML = tabs.map(([key, icon, label]) => `<button data-tab="${key}" class="${tab === key ? 'active' : ''}" ${tab === key ? 'aria-current="page"' : ''}><span class="nav-icon" aria-hidden="true">${icon}</span>${label}</button>`).join('');
   $('#identity').textContent = user ? `${user.name} · ${roles[user.role]}` : '校园社团活动平台';
   $('#login-open').hidden = Boolean(user); $('#logout').hidden = !user;
@@ -149,6 +149,10 @@ async function render(query = '') {
       events = await api(admin ? '/admin/activities' : '/teacher/approved');
       if (version !== renderVersion) return;
       html = title(admin ? '全部社团活动' : '已通过活动', `${events.length} 场活动`) + (events.length ? `<div class="grid">${events.map(v => `<div>` + card(v, admin ? 'admin' : 'approved') + (!admin ? `<form class="panel end-form" data-id="${esc(v.activity.id)}"><label>设置活动结束时间<input name="endsAt" type="datetime-local" value="${esc(v.activity.endsAt)}" required></label><button class="button outline">保存结束时间</button></form>` : '') + `</div>`).join('')}</div>` : empty('暂无活动'));
+    } else if (tab === 'account-applications') {
+      const rows = await api('/admin/account-applications');
+      if (version !== renderVersion) return;
+      html = title('注册审核', `${rows.length} 项待处理`) + (rows.length ? rows.map(r => `<form class="panel account-review-form" data-id="${esc(r.id)}"><h3>${esc(r.nickname)}</h3><p>申请身份：${esc(roles[r.role])}${r.clubName ? ` · 所属社团：${esc(r.clubName)}` : ''}</p><p>申请时间：${date(r.createdAt)}</p><label>审核意见<textarea name="comment" maxlength="500" placeholder="驳回时必须填写原因"></textarea></label><div class="actions"><button type="submit" name="decision" value="approve" class="button dark">通过注册</button><button type="submit" name="decision" value="reject" class="button danger">驳回申请</button></div></form>`).join('') : empty('暂无待审核的注册申请'));
     } else if (tab === 'accounts') {
       const rows = await api('/admin/users');
       if (version !== renderVersion) return;
@@ -170,7 +174,25 @@ function filterActivities() {
   if (summary) summary.textContent = visible ? `显示 ${visible} 场活动` : '没有符合条件的活动，请调整搜索或筛选条件。';
 }
 function showDetail() { const heading = $('#detail-content h2'); if (heading) heading.id = 'detail-title'; $('#detail-dialog').showModal(); }
-function openLogin() { $('#login-error').textContent = ''; $('#login-dialog').showModal(); }
+function showAuth(mode, notice = '') {
+  const registering = mode === 'register';
+  $('#login-form').hidden = registering;
+  $('#register-form').hidden = !registering;
+  $('#login-title').textContent = registering ? '注册账号' : '登录';
+  $('#auth-notice').textContent = notice;
+  $('#login-error').textContent = '';
+  $('#register-error').textContent = '';
+  if (registering) {
+    $('#register-club').innerHTML = clubs.map(c => `<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('');
+    updateRegisterRole();
+  }
+}
+function updateRegisterRole() {
+  const isClub = $('#register-role').value === 'CLUB_STAFF';
+  $('#register-club-field').hidden = !isClub;
+  $('#register-club').required = isClub;
+}
+function openLogin() { showAuth('login'); $('#login-dialog').showModal(); }
 function details(id) {
   const v = events.find(v => v.activity.id === id); if (!v) return;
   const a = v.activity;
@@ -206,6 +228,8 @@ document.addEventListener('click', async event => {
   const d = button.dataset;
   if (d.tab) { tab = d.tab; await render(); $('#workspace h2')?.focus(); return; }
   if ('login' in d || button.id === 'login-open') { if ($('#detail-dialog').open) $('#detail-dialog').close(); openLogin(); return; }
+  if (button.id === 'show-register') { showAuth('register'); $('#register-form [name=nickname]').focus(); return; }
+  if (button.id === 'show-login') { $('#register-form').reset(); showAuth('login'); $('#login-form [name=username]').focus(); return; }
   if (button.id === 'login-close') { $('#login-dialog').close(); return; }
   if (button.id === 'detail-close') { $('#detail-dialog').close(); return; }
   if (d.demo) { $('#login-form').elements.username.value = d.demo; $('#login-form').elements.password.value = 'demo1234'; return; }
@@ -252,6 +276,7 @@ document.addEventListener('input', event => { if (event.target.id === 'account-s
 document.addEventListener('change', event => {
   if (['activity-date', 'activity-category'].includes(event.target.id)) filterActivities();
   if (event.target.id === 'account-filter') filterAccounts();
+  if (event.target.id === 'register-role') updateRegisterRole();
   if (event.target.id === 'new-role') $('#club-field').hidden = event.target.value !== 'CLUB_STAFF';
 });
 document.addEventListener('submit', async event => {
@@ -259,13 +284,23 @@ document.addEventListener('submit', async event => {
   const data = Object.fromEntries(new FormData(form));
   if (form.id === 'search-form') { const day = $('#activity-date').value, category = $('#activity-category').value; await render(data.q); if ($('#activity-date')) { $('#activity-date').value = day; $('#activity-category').value = category; filterActivities(); } return; }
   const submit = event.submitter;
-  if (form.matches('.review-form, .post-review-form, .club-review-form') && submit?.value === 'reject' && !data.comment.trim()) { toast('驳回时请填写审核意见'); form.elements.comment.focus(); return; }
+  if (form.matches('.review-form, .post-review-form, .club-review-form, .account-review-form') && submit?.value === 'reject' && !data.comment.trim()) { toast('驳回时请填写审核意见'); form.elements.comment.focus(); return; }
   if (submit) submit.disabled = true;
   try {
     if (form.id === 'login-form') {
       user = await api('/auth/login', { method: 'POST', body: data });
       $('#login-dialog').close();
       tab = ({ STUDENT: 'discover', CLUB_STAFF: 'club', TEACHER: 'review', ADMIN: 'accounts' })[user.role];
+    } else if (form.id === 'register-form') {
+      if (data.password !== data.confirmPassword) { $('#register-error').textContent = '两次输入的密码不一致'; form.elements.confirmPassword.focus(); return; }
+      const nickname = data.nickname.trim();
+      const result = await api('/auth/register', { method: 'POST', body: { nickname, role: data.role, password: data.password, clubId: data.role === 'CLUB_STAFF' ? data.clubId : null } });
+      form.reset(); $('#login-form').elements.username.value = nickname; $('#login-form').elements.password.value = '';
+      showAuth('login', result.message); $('#login-form').elements.password.focus(); return;
+    } else if (form.classList.contains('account-review-form')) {
+      const approved = submit?.value === 'approve';
+      const result = await api(`/admin/account-applications/${form.dataset.id}/decision`, { method: 'POST', body: { approved, comment: data.comment } });
+      toast(result.message);
     } else if (form.id === 'activity-form') {
       data.capacity = Number(data.capacity);
       await api(form.dataset.id ? `/club/activities/${form.dataset.id}` : '/club/activities', { method: form.dataset.id ? 'PUT' : 'POST', body: data });
@@ -298,6 +333,7 @@ document.addEventListener('submit', async event => {
     await render();
   } catch (error) {
     if (form.id === 'login-form') $('#login-error').textContent = error.message;
+    else if (form.id === 'register-form') $('#register-error').textContent = error.message;
     else toast(error.message);
   } finally { if (submit) submit.disabled = false; }
 });

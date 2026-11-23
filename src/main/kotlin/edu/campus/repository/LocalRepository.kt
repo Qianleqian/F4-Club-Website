@@ -33,7 +33,8 @@ class LocalRepository(
         val next = State(state.users.toMutableList(), state.clubs.toMutableList(),
             state.activities.toMutableList(), state.registrations.toMutableList(),
             state.notifications.toMutableList(), state.history.toMutableList(), state.clubApplications.toMutableList(),
-            state.reminders.toMutableList(), state.posts.toMutableList(), state.reviews.toMutableList())
+            state.reminders.toMutableList(), state.posts.toMutableList(), state.reviews.toMutableList(),
+            state.accountApplications.toMutableList())
         val result = block(next)
         save(next)
         state = next
