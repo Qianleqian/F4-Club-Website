@@ -166,10 +166,60 @@ class CampusService(private val repository: LocalRepository, private val now: ()
         s.users.filter { it.role == Role.CLUB_STAFF }.map { it.public() }
     }
 
+    fun registerAccount(request: RegisterRequest): RegisterResult = repository.change { s ->
+        val nickname = request.nickname.trim()
+        requireRule(nickname.length in 2..30 && nickname.none { it.isISOControl() }, 400, "昵称需要 2 至 30 个字符，不能包含控制字符")
+        requireRule(request.password.length in 8..128, 400, "密码需要 8 至 128 个字符")
+        requireRule(s.users.none { it.username.equals(nickname, true) } &&
+            s.accountApplications.none { it.status == AccountApplicationStatus.PENDING && it.nickname.equals(nickname, true) }, 409, "该昵称已被使用或正在审核")
+        requireRule(request.role != Role.CLUB_STAFF || s.clubs.any { it.id == request.clubId }, 400, "社团负责人请选择有效的所属社团")
+        val hash = Passwords.hash(request.password)
+        if (request.role == Role.STUDENT) {
+            s.users.add(User(UUID.randomUUID().toString(), nickname, nickname, hash, Role.STUDENT))
+            RegisterResult("学生账号注册成功，请使用昵称和密码登录", false)
+        } else {
+            s.accountApplications.add(AccountApplication(UUID.randomUUID().toString(), nickname, hash, request.role,
+                if (request.role == Role.CLUB_STAFF) request.clubId else null, now().toString()))
+            RegisterResult("注册申请已提交，请等待管理员审核后登录", true)
+        }
+    }
+    fun accountApplications(id: String): List<AccountApplicationView> = repository.read { s ->
+        actor(s, id, Role.ADMIN)
+        s.accountApplications.filter { it.status == AccountApplicationStatus.PENDING }.map {
+            AccountApplicationView(it.id, it.nickname, it.role, it.clubId, s.clubs.find { c -> c.id == it.clubId }?.name, it.createdAt)
+        }
+    }
+    fun decideAccountApplication(id: String, applicationId: String, request: AccountDecisionRequest): Message = repository.change { s ->
+        val admin = actor(s, id, Role.ADMIN)
+        val application = s.accountApplications.find { it.id == applicationId } ?: fail(404, "注册申请不存在")
+        requireRule(application.status == AccountApplicationStatus.PENDING, 409, "该申请已处理")
+        requireRule(request.comment.length <= 500, 400, "审核意见不能超过 500 个字符")
+        requireRule(request.approved || request.comment.isNotBlank(), 400, "驳回时请填写原因")
+        if (request.approved) {
+            requireRule(s.users.none { it.username.equals(application.nickname, true) }, 409, "昵称已被使用")
+            requireRule(application.role != Role.CLUB_STAFF || s.clubs.any { it.id == application.clubId }, 409, "申请的社团不存在")
+            s.users.add(User(UUID.randomUUID().toString(), application.nickname, application.nickname,
+                application.passwordHash, application.role, application.clubId))
+        }
+        val updated = application.copy(status = if (request.approved) AccountApplicationStatus.APPROVED else AccountApplicationStatus.REJECTED,
+            reviewerId = admin.id, reviewedAt = now().toString(), reviewComment = request.comment.trim())
+        s.accountApplications[s.accountApplications.indexOf(application)] = updated
+        Message(if (request.approved) "账号已审核通过" else "注册申请已驳回")
+    }
     fun login(request: LoginRequest): PublicUser = repository.read { s ->
-        val user = s.users.find { it.username == request.username.trim() && it.enabled }
-        requireRule(user != null && Passwords.verify(request.password, user.passwordHash), 401, "账号或密码错误，或账号已禁用")
-        user!!.public()
+        val name = request.username.trim()
+        val user = s.users.find { it.username.equals(name, true) }
+        if (user != null) {
+            requireRule(user.enabled && Passwords.verify(request.password, user.passwordHash), 401, "账号或密码错误，或账号已禁用")
+            user.public()
+        } else {
+            val application = s.accountApplications.lastOrNull { it.nickname.equals(name, true) && it.status != AccountApplicationStatus.APPROVED }
+            if (application != null && Passwords.verify(request.password, application.passwordHash)) {
+                if (application.status == AccountApplicationStatus.PENDING) fail(403, "账号正在等待管理员审核，请稍后再登录")
+                fail(403, "注册申请未通过：${application.reviewComment}。请重新注册或联系管理员")
+            }
+            fail(401, "账号或密码错误，或账号已禁用")
+        }
     }
     fun current(id: String): PublicUser = repository.read { actor(it, id).public() }
     fun clubs(): List<Club> = repository.read { it.clubs.toList() }
@@ -325,7 +375,7 @@ class CampusService(private val repository: LocalRepository, private val now: ()
         requireRule(username.matches(Regex("[a-zA-Z0-9_]{3,30}")), 400, "账号需要 3 至 30 位字母、数字或下划线")
         requireRule(request.name.trim().length in 1..50, 400, "姓名需要 1 至 50 个字符")
         requireRule(request.password.length in 8..128, 400, "密码需要 8 至 128 个字符")
-        requireRule(s.users.none { it.username.equals(username, true) }, 409, "账号已存在")
+        requireRule(s.users.none { it.username.equals(username, true) } && s.accountApplications.none { it.status == AccountApplicationStatus.PENDING && it.nickname.equals(username, true) }, 409, "账号已存在或正在审核")
         requireRule(request.role != Role.CLUB_STAFF || s.clubs.any { it.id == request.clubId }, 400, "社团工作人员必须关联有效社团")
         val user = User(UUID.randomUUID().toString(), username, request.name.trim(), Passwords.hash(request.password),
             request.role, if (request.role == Role.CLUB_STAFF) request.clubId else null)

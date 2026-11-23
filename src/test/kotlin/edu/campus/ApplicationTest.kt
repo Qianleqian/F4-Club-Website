@@ -111,4 +111,30 @@ class ApplicationTest {
         }.status)
         assertEquals(1440, browser.get("/api/student/registrations").body<List<RegistrationView>>().single().reminderMinutes)
     }
+    @Test fun `registration and approval endpoints enforce roles and protect password hashes`() = testApplication {
+        application { campusModule(LocalRepository(directory.resolve("register.json"))) }
+        val browser = createClient { install(ContentNegotiation) { json() }; install(HttpCookies) }
+        suspend fun login(name: String, password: String = "demo1234") = browser.post("/api/auth/login") {
+            contentType(ContentType.Application.Json); setBody(LoginRequest(name, password))
+        }
+        val created = browser.post("/api/auth/register") { contentType(ContentType.Application.Json); setBody(RegisterRequest("新学生", "password123", Role.STUDENT)) }
+        assertEquals(HttpStatusCode.Created, created.status)
+        assertFalse(created.body<RegisterResult>().requiresApproval)
+        assertEquals(Role.STUDENT, login("新学生", "password123").body<PublicUser>().role)
+        assertEquals(HttpStatusCode.Forbidden, browser.get("/api/admin/account-applications").status)
+        val request = browser.post("/api/auth/register") { contentType(ContentType.Application.Json); setBody(RegisterRequest("新教师", "password123", Role.TEACHER)) }
+        assertTrue(request.body<RegisterResult>().requiresApproval)
+        assertEquals(HttpStatusCode.Forbidden, login("新教师", "password123").status)
+        assertEquals(HttpStatusCode.OK, login("admin").status)
+        val raw = browser.get("/api/admin/account-applications").body<String>()
+        assertFalse(raw.contains("passwordHash"))
+        assertFalse(raw.contains("password123"))
+        assertFalse(java.nio.file.Files.readString(directory.resolve("register.json")).contains("password123"))
+        val pending = browser.get("/api/admin/account-applications").body<List<AccountApplicationView>>().single()
+        assertEquals(HttpStatusCode.OK, browser.post("/api/admin/account-applications/${pending.id}/decision") {
+            contentType(ContentType.Application.Json); setBody(AccountDecisionRequest(true))
+        }.status)
+        assertEquals(Role.TEACHER, login("新教师", "password123").body<PublicUser>().role)
+        assertEquals(HttpStatusCode.Forbidden, browser.get("/api/admin/users").status)
+    }
 }

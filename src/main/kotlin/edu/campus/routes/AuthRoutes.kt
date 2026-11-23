@@ -3,6 +3,7 @@ package edu.campus.routes
 import edu.campus.model.*
 import edu.campus.service.CampusService
 import io.ktor.server.request.*
+import io.ktor.http.HttpStatusCode
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import io.ktor.server.sessions.*
@@ -12,6 +13,7 @@ fun Route.authRoutes(service: CampusService) {
         call.respond(PublicConfig(Role.entries.none { System.getenv("BOOTSTRAP_${it.name}_PASSWORD") != null }))
     }
     get("/api/health") { call.respond(Message("ok")) }
+    post("/api/auth/register") { call.respond(HttpStatusCode.Created, service.registerAccount(call.receive())) }
     post("/api/auth/login") {
         val user = service.login(call.receive())
         call.sessions.set(LoginSession(user.id))

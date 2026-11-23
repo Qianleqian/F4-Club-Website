@@ -163,6 +163,7 @@ class CampusServiceTest {
         assertTrue(state.notifications.isEmpty())
         assertTrue(state.history.isEmpty())
         assertTrue(state.clubApplications.isEmpty())
+        assertTrue(state.accountApplications.isEmpty())
     }
     @Test fun `posts require review before publication and keep review history`() {
         val service = service()
@@ -206,5 +207,40 @@ class CampusServiceTest {
         assertEquals(1, reloaded.messages("u-student").count { it.text.startsWith("活动提醒") })
         reloaded.setReminder("u-student", reg.id, null)
         assertNull(reloaded.registrations("u-student").single().reminderMinutes)
+    }
+    @Test fun `self registration supports students and guards privileged roles until approval`() {
+        val service = service()
+        assertFalse(service.registerAccount(RegisterRequest("新同学", "password123", Role.STUDENT)).requiresApproval)
+        assertEquals(Role.STUDENT, service.login(LoginRequest("新同学", "password123")).role)
+        assertRule(409) { service.registerAccount(RegisterRequest("新同学", "password123", Role.STUDENT)) }
+        assertRule(400) { service.registerAccount(RegisterRequest("社团小王", "password123", Role.CLUB_STAFF)) }
+        for ((role, nickname) in listOf(Role.CLUB_STAFF to "社团小王", Role.TEACHER to "新老师", Role.ADMIN to "新管理员")) {
+            val result = service.registerAccount(RegisterRequest(nickname, "password123", role, if (role == Role.CLUB_STAFF) "guitar" else null))
+            assertTrue(result.requiresApproval)
+            assertRule(403) { service.login(LoginRequest(nickname, "password123")) }
+            assertRule(403) { service.accountApplications("u-student") }
+            val pending = service.accountApplications("u-admin").first { it.nickname == nickname }
+            assertRule(403) { service.decideAccountApplication("u-student", pending.id, AccountDecisionRequest(true)) }
+            service.decideAccountApplication("u-admin", pending.id, AccountDecisionRequest(true))
+            val user = service().login(LoginRequest(nickname, "password123"))
+            assertEquals(role, user.role)
+            if (role == Role.CLUB_STAFF) assertEquals("guitar", user.clubId)
+            assertRule(409) { service.decideAccountApplication("u-admin", pending.id, AccountDecisionRequest(true)) }
+        }
+    }
+
+    @Test fun `registration rejection allows reapplication without bypassing approval`() {
+        val service = service()
+        service.registerAccount(RegisterRequest("TeacherOne", "password123", Role.TEACHER))
+        assertRule(409) { service.registerAccount(RegisterRequest("teacherone", "password123", Role.STUDENT)) }
+        assertRule(409) { service.createUser("u-admin", CreateUserRequest("teacherone", "重复", "password123", Role.TEACHER)) }
+        val pending = service.accountApplications("u-admin").single()
+        assertRule(400) { service.decideAccountApplication("u-admin", pending.id, AccountDecisionRequest(false)) }
+        service.decideAccountApplication("u-admin", pending.id, AccountDecisionRequest(false, "请提供身份信息"))
+        assertTrue(assertFailsWith<RuleViolation> { service.login(LoginRequest("teacherone", "password123")) }.message.contains("请提供身份信息"))
+        assertEquals(401, assertFailsWith<RuleViolation> { service.login(LoginRequest("teacherone", "wrong")) }.status)
+        service.registerAccount(RegisterRequest("TeacherOne", "password123", Role.TEACHER))
+        assertRule(403) { service.login(LoginRequest("TeacherOne", "password123")) }
+        assertEquals(1, service.accountApplications("u-admin").size)
     }
 }
