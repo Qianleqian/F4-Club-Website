@@ -164,6 +164,8 @@ class CampusServiceTest {
         assertTrue(state.history.isEmpty())
         assertTrue(state.clubApplications.isEmpty())
         assertTrue(state.accountApplications.isEmpty())
+        assertTrue(state.clubMemberships.isEmpty())
+        assertFalse(state.activities.single().membersOnly)
     }
     @Test fun `posts require review before publication and keep review history`() {
         val service = service()
@@ -242,5 +244,63 @@ class CampusServiceTest {
         service.registerAccount(RegisterRequest("TeacherOne", "password123", Role.TEACHER))
         assertRule(403) { service.login(LoginRequest("TeacherOne", "password123")) }
         assertEquals(1, service.accountApplications("u-admin").size)
+    }
+    @Test fun `membership needs approval and restricted activity checks reviewed membership`() {
+        val service = service()
+        val event = service.create("u-club", request().copy(membersOnly = true))
+        service.review("u-teacher", event.id, ReviewRequest(true))
+        assertRule(409) { service.register("u-student", event.id) }
+        assertTrue(service.messages("u-student").first().text.contains("仅限所属社团成员"))
+        val application = service.joinClub("u-student", "guitar")
+        assertEquals(MembershipStatus.PENDING, application.status)
+        assertTrue(service.myClubs("u-student").isEmpty())
+        assertRule(409) { service.register("u-student", event.id) }
+        assertRule(403) { service.reviewMembership("u-teacher", application.id, ReviewRequest(true)) }
+        val other = service.createUser("u-admin", CreateUserRequest("otherstaff2", "其他社团", "password123", Role.CLUB_STAFF, "acm"))
+        assertRule(403) { service.reviewMembership(other.id, application.id, ReviewRequest(true)) }
+        assertRule(400) { service.reviewMembership("u-club", application.id, ReviewRequest(false)) }
+        service.reviewMembership("u-club", application.id, ReviewRequest(true))
+        assertTrue(service.messages("u-student").first().text.contains("欢迎加入"))
+        assertEquals("guitar", service.myClubs("u-student").single().id)
+        assertEquals(1, service().myClubs("u-student").size)
+        service.register("u-student", event.id)
+        assertTrue(service.messages("u-student").first().text.contains("恭喜成功报名"))
+        assertRule(409) { service.joinClub("u-student", "guitar") }
+    }
+
+    @Test fun `student registration can request a club and rejection permits reapplication`() {
+        val service = service()
+        assertRule(400) { service.registerAccount(RegisterRequest("成员学生", "password123", Role.STUDENT, "missing")) }
+        service.registerAccount(RegisterRequest("成员学生", "password123", Role.STUDENT, "guitar"))
+        val student = service.login(LoginRequest("成员学生", "password123"))
+        val pending = service.pendingMemberships("u-club").single()
+        assertEquals(student.id, pending.studentId)
+        assertTrue(service.messages("u-club").any { it.text.contains("申请加入") })
+        service.reviewMembership("u-club", pending.id, ReviewRequest(false, "资料待补充"))
+        assertTrue(service.messages(student.id).first().text.contains("资料待补充"))
+        assertTrue(service.myClubs(student.id).isEmpty())
+        service.joinClub(student.id, "guitar")
+        assertEquals(MembershipStatus.PENDING, service.myMemberships(student.id).single().status)
+    }
+
+    @Test fun `failure notices survive failed attempts and event change notifies registrations`() {
+        val repo = LocalRepository(directory.resolve("notice-state.json"))
+        val service = CampusService(repo) { instant }
+        val event = service.create("u-club", request(1))
+        service.review("u-teacher", event.id, ReviewRequest(true))
+        service.register("u-student", event.id)
+        assertRule(404) { service.register("u-student", "missing-activity") }
+        assertTrue(service.messages("u-student").first().text.contains("活动不存在"))
+        val other = service.createUser("u-admin", CreateUserRequest("otherstudent2", "其他学生", "password123", Role.STUDENT))
+        assertRule(409) { service.register(other.id, event.id) }
+        assertTrue(CampusService(LocalRepository(directory.resolve("notice-state.json"))) { instant }.messages(other.id).single().text.contains("人数已满"))
+        val later = CampusService(repo) { instant.plusDays(1) }
+        assertRule(409) { later.register(other.id, event.id) }
+        assertTrue(service.messages(other.id).first().text.contains("截止"))
+        assertRule(409) { service.edit("u-club", event.id, request(1).copy(membersOnly = true)) }
+        service.edit("u-club", event.id, request(1).copy(startsAt = instant.plusDays(3).toString()))
+        assertTrue(service.messages("u-student").first().text.contains("开始时间"))
+        service.cancel("u-club", event.id)
+        assertTrue(service.messages("u-student").first().text.contains("已取消"))
     }
 }
