@@ -9,6 +9,9 @@ import io.ktor.server.response.*
 import io.ktor.server.routing.*
 
 fun Route.studentRoutes(service: CampusService) {
+    get("/api/student/club-memberships") { call.respond(service.myMemberships(call.userId())) }
+    get("/api/student/clubs") { call.respond(service.myClubs(call.userId())) }
+    post("/api/student/clubs/{id}/join") { call.respond(HttpStatusCode.Created, service.joinClub(call.userId(), call.recordId())) }
     post("/api/activities/{id}/registrations") {
         call.respond(HttpStatusCode.Created, service.register(call.userId(), call.recordId()))
     }

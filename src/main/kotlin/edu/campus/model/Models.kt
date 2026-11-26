@@ -30,7 +30,8 @@ data class Activity(
     val deadline: String, val startsAt: String,
     val status: ActivityStatus = ActivityStatus.PENDING,
     val reviewComment: String = "", val reviewerId: String? = null,
-    val endsAt: String = "", val updatedAt: String? = null, val category: String = "其他"
+    val endsAt: String = "", val updatedAt: String? = null, val category: String = "其他",
+    val membersOnly: Boolean = false
 )
 @Serializable
 data class Registration(val id: String, val activityId: String, val studentId: String, val createdAt: String)
@@ -53,7 +54,8 @@ data class State(
     val reminders: MutableList<Reminder> = mutableListOf(),
     val posts: MutableList<ClubPost> = mutableListOf(),
     val reviews: MutableList<ReviewRecord> = mutableListOf(),
-    val accountApplications: MutableList<AccountApplication> = mutableListOf()
+    val accountApplications: MutableList<AccountApplication> = mutableListOf(),
+    val clubMemberships: MutableList<ClubMembership> = mutableListOf()
 )
 @Serializable data class LoginRequest(val username: String, val password: String)
 @Serializable data class LoginSession(val userId: String)
@@ -61,7 +63,7 @@ data class State(
 data class ActivityRequest(
     val title: String, val description: String, val location: String,
     val requirements: String, val capacity: Int, val deadline: String, val startsAt: String,
-    val endsAt: String = "", val category: String = "其他"
+    val endsAt: String = "", val category: String = "其他", val membersOnly: Boolean = false
 )
 @Serializable data class ReviewRequest(val approved: Boolean, val comment: String = "")
 @Serializable
@@ -100,3 +102,10 @@ data class CreateUserRequest(
 @Serializable data class AccountApplicationView(val id: String, val nickname: String, val role: Role,
     val clubId: String? = null, val clubName: String? = null, val createdAt: String)
 @Serializable data class AccountDecisionRequest(val approved: Boolean, val comment: String = "")
+
+@Serializable enum class MembershipStatus { PENDING, APPROVED, REJECTED }
+@Serializable data class ClubMembership(val id: String, val clubId: String, val studentId: String, val requestedAt: String,
+    val status: MembershipStatus = MembershipStatus.PENDING, val reviewedAt: String? = null,
+    val reviewerId: String? = null, val reviewComment: String = "")
+@Serializable data class MembershipView(val id: String, val clubId: String, val clubName: String,
+    val studentId: String, val studentName: String, val status: MembershipStatus, val requestedAt: String, val reviewComment: String = "")
