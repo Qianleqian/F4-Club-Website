@@ -173,9 +173,20 @@ class CampusService(private val repository: LocalRepository, private val now: ()
         requireRule(s.users.none { it.username.equals(nickname, true) } &&
             s.accountApplications.none { it.status == AccountApplicationStatus.PENDING && it.nickname.equals(nickname, true) }, 409, "该昵称已被使用或正在审核")
         requireRule(request.role != Role.CLUB_STAFF || s.clubs.any { it.id == request.clubId }, 400, "社团负责人请选择有效的所属社团")
+        requireRule(request.role != Role.STUDENT || request.clubId == null || s.clubs.any { it.id == request.clubId }, 400, "请选择有效社团或选择暂无社团")
         val hash = Passwords.hash(request.password)
         if (request.role == Role.STUDENT) {
-            s.users.add(User(UUID.randomUUID().toString(), nickname, nickname, hash, Role.STUDENT))
+            val student = User(UUID.randomUUID().toString(), nickname, nickname, hash, Role.STUDENT)
+            s.users.add(student)
+            if (request.clubId != null) {
+                val club = s.clubs.first { it.id == request.clubId }
+                val membership = ClubMembership(UUID.randomUUID().toString(), club.id, student.id, now().toString())
+                s.clubMemberships.add(membership)
+                notify(s, student.id, "已提交加入「${club.name}」的申请，请等待社团负责人审核。")
+                s.users.filter { it.role == Role.CLUB_STAFF && it.enabled && it.clubId == club.id }.forEach {
+                    notify(s, it.id, "${student.name}申请加入「${club.name}」，请在成员审核中处理。")
+                }
+            }
             RegisterResult("学生账号注册成功，请使用昵称和密码登录", false)
         } else {
             s.accountApplications.add(AccountApplication(UUID.randomUUID().toString(), nickname, hash, request.role,
@@ -223,6 +234,48 @@ class CampusService(private val repository: LocalRepository, private val now: ()
     }
     fun current(id: String): PublicUser = repository.read { actor(it, id).public() }
     fun clubs(): List<Club> = repository.read { it.clubs.toList() }
+    private fun membershipView(s: State, m: ClubMembership) = MembershipView(m.id, m.clubId,
+        s.clubs.find { it.id == m.clubId }?.name ?: "未知社团", m.studentId,
+        s.users.find { it.id == m.studentId }?.name ?: "未知学生", m.status, m.requestedAt, m.reviewComment)
+    fun myClubs(id: String): List<Club> = repository.read { s ->
+        actor(s, id, Role.STUDENT)
+        val clubIds = s.clubMemberships.filter { it.studentId == id && it.status == MembershipStatus.APPROVED }.map { it.clubId }.toSet()
+        s.clubs.filter { it.id in clubIds }
+    }
+    fun myMemberships(id: String): List<MembershipView> = repository.read { s ->
+        actor(s, id, Role.STUDENT)
+        s.clubMemberships.filter { it.studentId == id }.asReversed().distinctBy { it.clubId }.map { membershipView(s, it) }
+    }
+    fun joinClub(id: String, clubId: String): ClubMembership = repository.change { s ->
+        val student = actor(s, id, Role.STUDENT)
+        val club = s.clubs.find { it.id == clubId } ?: fail(404, "社团不存在")
+        requireRule(s.clubMemberships.none { it.studentId == id && it.clubId == clubId && it.status != MembershipStatus.REJECTED }, 409, "你已加入该社团或申请正在审核")
+        val membership = ClubMembership(UUID.randomUUID().toString(), club.id, id, now().toString())
+        s.clubMemberships.add(membership)
+        notify(s, id, "已提交加入「${club.name}」的申请，请等待社团负责人审核。")
+        s.users.filter { it.role == Role.CLUB_STAFF && it.enabled && it.clubId == club.id }.forEach {
+            notify(s, it.id, "${student.name}申请加入「${club.name}」，请在成员审核中处理。")
+        }
+        membership
+    }
+    fun pendingMemberships(id: String): List<MembershipView> = repository.read { s ->
+        val staff = actor(s, id, Role.CLUB_STAFF)
+        s.clubMemberships.filter { it.clubId == staff.clubId && it.status == MembershipStatus.PENDING }.map { membershipView(s, it) }
+    }
+    fun reviewMembership(id: String, membershipId: String, request: ReviewRequest): MembershipView = repository.change { s ->
+        val staff = actor(s, id, Role.CLUB_STAFF)
+        val membership = s.clubMemberships.find { it.id == membershipId } ?: fail(404, "成员申请不存在")
+        requireRule(staff.clubId == membership.clubId, 403, "只能审核本社团的申请")
+        requireRule(membership.status == MembershipStatus.PENDING, 409, "该申请已处理")
+        requireRule(request.comment.length <= 500, 400, "审核意见不能超过 500 个字符")
+        requireRule(request.approved || request.comment.isNotBlank(), 400, "驳回时请填写原因")
+        val updated = membership.copy(status = if (request.approved) MembershipStatus.APPROVED else MembershipStatus.REJECTED,
+            reviewedAt = now().toString(), reviewerId = staff.id, reviewComment = request.comment.trim())
+        s.clubMemberships[s.clubMemberships.indexOf(membership)] = updated
+        val club = s.clubs.first { it.id == membership.clubId }
+        notify(s, membership.studentId, if (request.approved) "欢迎加入「${club.name}」！你的申请已通过，可以在我的社团中查看。" else "加入「${club.name}」的申请未通过：${request.comment.trim()}。")
+        membershipView(s, updated)
+    }
     fun published(query: String, category: String = ""): List<ActivityView> = repository.read { s ->
         s.activities.filter { it.status == ActivityStatus.APPROVED }
             .map { view(s, it) }
@@ -248,7 +301,7 @@ class CampusService(private val repository: LocalRepository, private val now: ()
         requireRule(request.endsAt.isBlank() || parseDate(request.endsAt).isAfter(start), 400, "结束时间应晚于开始时间")
         Activity(UUID.randomUUID().toString(), user.clubId!!, user.id, request.title.trim(),
             request.description.trim(), request.location.trim(), request.requirements.trim(),
-            request.capacity, deadline.toString(), start.toString(), endsAt = request.endsAt, category = request.category).also { s.activities.add(it) }
+            request.capacity, deadline.toString(), start.toString(), endsAt = request.endsAt, category = request.category, membersOnly = request.membersOnly).also { s.activities.add(it) }
     }
 
     fun edit(id: String, activityId: String, request: ActivityRequest): Activity = repository.change { s ->
@@ -261,6 +314,9 @@ class CampusService(private val repository: LocalRepository, private val now: ()
         requireRule(request.category in listOf("音乐", "运动", "学术", "艺术", "公益", "其他"), 400, "活动分类无效")
         val count = s.registrations.count { it.activityId == activityId }
         requireRule(request.capacity in 1..5000 && request.capacity >= count, 400, "人数上限不能少于已报名人数")
+        requireRule(!request.membersOnly || s.registrations.filter { it.activityId == activityId }.all { r ->
+            s.clubMemberships.any { it.studentId == r.studentId && it.clubId == event.clubId && it.status == MembershipStatus.APPROVED }
+        }, 409, "已有报名学生不是本社团成员，不能设置为仅限社团成员")
         val deadline = parseDate(request.deadline)
         val start = parseDate(request.startsAt)
         requireRule(deadline.isAfter(now()) && start.isAfter(deadline), 400, "报名截止时间应晚于现在，活动时间应晚于截止时间")
@@ -268,14 +324,16 @@ class CampusService(private val repository: LocalRepository, private val now: ()
         val updated = event.copy(title = request.title.trim(), description = request.description.trim(),
             location = request.location.trim(), requirements = request.requirements.trim(), capacity = request.capacity,
             deadline = deadline.toString(), startsAt = start.toString(), endsAt = request.endsAt,
-            status = ActivityStatus.PENDING, reviewComment = "", reviewerId = null, updatedAt = now().toString(), category = request.category)
+            status = ActivityStatus.PENDING, reviewComment = "", reviewerId = null, updatedAt = now().toString(), category = request.category, membersOnly = request.membersOnly)
         s.activities[s.activities.indexOf(event)] = updated
         val changes = listOfNotNull(
             if (event.title != updated.title) "名称：${event.title} → ${updated.title}" else null,
             if (event.description != updated.description) "活动简介已修改" else null,
             if (event.requirements != updated.requirements) "参加条件已修改" else null,
+            if (event.membersOnly != updated.membersOnly) "成员资格要求已修改" else null,
             if (event.location != updated.location) "地点：${event.location} → ${updated.location}" else null,
-            if (event.startsAt != updated.startsAt || event.endsAt != updated.endsAt) "活动时间已修改" else null,
+            if (event.startsAt != updated.startsAt) "开始时间：${event.startsAt} → ${updated.startsAt}" else null,
+            if (event.endsAt != updated.endsAt) "结束时间：${event.endsAt.ifBlank { "未设置" }} → ${updated.endsAt.ifBlank { "未设置" }}" else null,
             if (event.deadline != updated.deadline) "报名截止时间已修改" else null,
             if (event.capacity != updated.capacity) "人数上限：${event.capacity} → ${updated.capacity}" else null,
             if (event.category != updated.category) "分类：${event.category} → ${updated.category}" else null
@@ -334,14 +392,33 @@ class CampusService(private val repository: LocalRepository, private val now: ()
         updated
     }
 
-    fun register(id: String, activityId: String): Registration = repository.change { s ->
-        actor(s, id, Role.STUDENT)
-        val event = activity(s, activityId)
-        requireRule(event.status == ActivityStatus.APPROVED, 409, "活动尚未发布或已取消")
-        requireRule(now().isBefore(parseDate(event.deadline)), 409, "报名已截止")
-        requireRule(s.registrations.none { it.activityId == activityId && it.studentId == id }, 409, "你已经报名此活动")
-        requireRule(s.registrations.count { it.activityId == activityId } < event.capacity, 409, "报名人数已满")
-        Registration(UUID.randomUUID().toString(), activityId, id, now().toString()).also { s.registrations.add(it) }
+    fun register(id: String, activityId: String): Registration {
+        // Keep failed-attempt notifications in the same committed change as the eligibility check.
+        val outcome = repository.change { s ->
+            actor(s, id, Role.STUDENT)
+            val event = s.activities.find { it.id == activityId }
+            val reason = when {
+                event == null -> "活动不存在"
+                event.status != ActivityStatus.APPROVED -> "活动尚未发布或已取消"
+                !now().isBefore(parseDate(event.deadline)) -> "报名时间已截止"
+                s.registrations.any { it.activityId == activityId && it.studentId == id } -> "你已经报名此活动"
+                event.membersOnly && s.clubMemberships.none { it.studentId == id && it.clubId == event.clubId && it.status == MembershipStatus.APPROVED } -> "该活动仅限所属社团成员参加，你尚未加入该社团"
+                s.registrations.count { it.activityId == activityId } >= event.capacity -> "报名人数已满"
+                else -> null
+            }
+            if (reason != null) {
+                notify(s, id, "报名活动「${event?.title ?: "未知活动"}」失败：$reason。")
+                Pair<Registration?, RuleViolation?>(null, RuleViolation(if (event == null) 404 else 409, reason))
+            } else {
+                val activity = event!!
+                val registration = Registration(UUID.randomUUID().toString(), activityId, id, now().toString())
+                s.registrations.add(registration)
+                notify(s, id, "恭喜成功报名「${activity.title}」活动，请同学们注意活动地点并合理安排时间。")
+                Pair<Registration?, RuleViolation?>(registration, null)
+            }
+        }
+        outcome.second?.let { throw it }
+        return outcome.first!!
     }
     fun registrations(id: String): List<RegistrationView> = repository.read { s ->
         actor(s, id, Role.STUDENT)

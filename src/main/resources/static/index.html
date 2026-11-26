@@ -23,8 +23,8 @@
     </aside>
     <main id="main">
       <section class="hero">
-        <div><p class="eyebrow">FIND YOUR PEOPLE</p><h1>让兴趣，在校园相遇。</h1><p>发现一场活动，认识一群同好。<br>你的下一段校园故事，从这里开始。</p><a class="button dark" href="#workspace">探索活动 <span>↗</span></a></div>
-        <div class="hero-art" aria-hidden="true"><span class="orbit orbit-one"></span><span class="orbit orbit-two"></span><span class="art-label label-one">音乐 / MUSIC</span><span class="art-label label-two">运动 / SPORTS</span><span class="art-label label-three">创造 / CREATE</span><span class="art-center">一起<br>发生。</span><span class="art-star">✳</span></div>
+        <div><p class="eyebrow">FIND YOUR PEOPLE</p><h1>让兴趣，在校园相遇。</h1><p>发现一场活动，认识一群同好。<br>你的下一段校园故事，从这里开始。</p><a class="button dark" href="#workspace">探索活动</a></div>
+        <div class="hero-art" aria-hidden="true"><span class="orbit orbit-one"></span><span class="orbit orbit-two"></span><span class="art-label label-one">音乐 / MUSIC</span><span class="art-label label-two">运动 / SPORTS</span><span class="art-label label-three">创造 / CREATE</span><span class="art-center">一起<br>发生。</span></div>
       </section>
       <section id="workspace" class="workspace" tabindex="-1" aria-live="polite"></section>
       <footer>集会 CAMPUS CLUBS <span>西南交通大学 · 社团活动平台</span></footer>
@@ -46,7 +46,7 @@
       <p class="muted">昵称将作为登录账号。学生注册后可登录；其他身份需管理员审核。</p>
       <label>昵称<input name="nickname" minlength="2" maxlength="30" autocomplete="username" required></label>
       <label>个人身份<select name="role" id="register-role" required><option value="STUDENT">Student（学生）</option><option value="CLUB_STAFF">Club holder（社团负责人）</option><option value="TEACHER">Teacher（教师）</option><option value="ADMIN">Admin（管理员）</option></select></label>
-      <label id="register-club-field" hidden>所属社团<select name="clubId" id="register-club"></select></label>
+      <label id="register-club-field"><span id="register-club-label">申请加入社团（可稍后申请）</span><select name="clubId" id="register-club"></select></label>
       <label>设置密码<input name="password" type="password" minlength="8" maxlength="128" autocomplete="new-password" required></label>
       <label>确认密码<input name="confirmPassword" type="password" minlength="8" maxlength="128" autocomplete="new-password" required></label>
       <p id="register-error" class="error" role="alert"></p>

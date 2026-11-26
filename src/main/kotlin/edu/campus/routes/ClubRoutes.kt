@@ -7,6 +7,8 @@ import io.ktor.server.response.*
 import io.ktor.server.routing.*
 
 fun Route.clubRoutes(service: CampusService) {
+    get("/api/club/membership-applications") { call.respond(service.pendingMemberships(call.userId())) }
+    post("/api/club/membership-applications/{id}/review") { call.respond(service.reviewMembership(call.userId(), call.recordId(), call.receive())) }
     get("/api/club/reviews") { call.respond(service.reviewHistory(call.userId())) }
     get("/api/club/posts") { call.respond(service.clubPosts(call.userId())) }
     post("/api/club/posts") { call.respond(HttpStatusCode.Created, service.savePost(call.userId(), null, call.receive())) }
