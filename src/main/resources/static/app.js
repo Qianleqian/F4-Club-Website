@@ -21,9 +21,9 @@ function toast(text) {
 }
 function navigation() {
   const tabs = [['discover', '◎', '发现活动'], ['posts', '▤', '社团公告']];
-  if (user) tabs.push(['messages', '✉', '站内消息']);
-  if (user?.role === 'STUDENT') tabs.push(['registered', '▤', '我的报名']);
-  if (user?.role === 'CLUB_STAFF') tabs.push(['club', '▤', '社团活动'], ['create', '+', '创建活动'], ['club-application', '+', '申请新社团'], ['club-posts', '▤', '管理公告'], ['reviews', '▤', '审核记录']);
+  if (user) tabs.push(['messages', '✉', '站内收件箱']);
+  if (user?.role === 'STUDENT') tabs.push(['registered', '▤', '我的报名'], ['my-clubs', '▤', '我的社团'], ['all-clubs', '◎', '全部社团']);
+  if (user?.role === 'CLUB_STAFF') tabs.push(['club', '▤', '社团活动'], ['create', '+', '创建活动'], ['club-application', '+', '申请新社团'], ['membership-review', '✓', '成员审核'], ['club-posts', '▤', '管理公告'], ['reviews', '▤', '审核记录']);
   if (user?.role === 'TEACHER') tabs.push(['review', '✓', '审核活动'], ['approved', '▤', '已通过活动'], ['club-review', '✓', '社团申请'], ['staff', '▤', '负责人名单'], ['reviews', '▤', '审核记录'], ['review-posts', '✓', '公告审核']);
   if (user?.role === 'ADMIN') tabs.push(['accounts', '▤', '账号管理'], ['account-applications', '✓', '注册审核'], ['admin-events', '▤', '全部活动'], ['staff', '▤', '负责人名单'], ['reviews', '▤', '审核记录'], ['new-user', '+', '创建账号']);
   $('#navigation').innerHTML = tabs.map(([key, icon, label]) => `<button data-tab="${key}" class="${tab === key ? 'active' : ''}" ${tab === key ? 'aria-current="page"' : ''}><span class="nav-icon" aria-hidden="true">${icon}</span>${label}</button>`).join('');
@@ -44,7 +44,7 @@ function card(view, mode = 'discover') {
   const a = view.activity;
   const registered = mode === 'registered';
   return `<article class="card"><div class="card-banner">${esc(view.clubName)} / CAMPUS CLUB</div><div class="card-body">
-    ${badge(a.status)} <span class="badge">${esc(a.category)}</span><h3>${esc(a.title)}</h3><p class="card-description">${esc(a.description)}</p>
+    ${badge(a.status)} <span class="badge">${esc(a.category)}</span> ${a.membersOnly ? '<span class="badge">仅限本社团成员</span>' : ''}<h3>${esc(a.title)}</h3><p class="card-description">${esc(a.description)}</p>
     <p>地点 ${esc(a.location)}</p><p>时间 ${date(a.startsAt)}${a.endsAt ? ` 至 ${date(a.endsAt)}` : ''}</p>
     ${a.status === 'APPROVED' ? `<p>活动进度：${phase(a)}</p>` : ''}${a.updatedAt ? `<p>活动信息已变更：${date(a.updatedAt)}</p>` : ''}
     <div class="meta">已报名 ${view.registeredCount} / ${a.capacity} 人（剩余 ${Math.max(0, a.capacity - view.registeredCount)} 人）<br>报名截止 ${date(a.deadline)}</div>
@@ -70,8 +70,9 @@ function activityForm(a = null) {
     <label>报名截止时间<input name="deadline" type="datetime-local" value="${esc(a?.deadline || '')}" required></label>
     <label>活动开始时间<input name="startsAt" type="datetime-local" value="${esc(a?.startsAt || '')}" required></label>
     <label>活动结束时间<input name="endsAt" type="datetime-local" value="${esc(a?.endsAt || '')}"></label>
-    <label class="full">参加条件<input name="requirements" maxlength="500" value="${esc(a?.requirements || '本校在读学生')}" required></label>
-    <p class="hint full">日期按北京时间填写。截止时间需要晚于当前时间，活动开始时间需要晚于截止时间。</p>
+    <label class="full check-label"><input type="checkbox" name="membersOnly" ${a?.membersOnly ? 'checked' : ''}>仅限本社团成员报名</label>
+    <label class="full">参加条件（文字说明）<input name="requirements" maxlength="500" value="${esc(a?.requirements || '本校在读学生')}" required></label>
+    <p class="hint full">日期按北京时间填写。仅勾选的社团成员限制会自动校验；其他文字条件需组织者自行核实。</p>
     <div class="full actions"><button class="button dark" type="submit">提交审核</button>${a ? '<button class="button outline" type="button" data-cancel-edit="club">放弃修改</button>' : ''}</div>${a ? '<p class="hint full">修改后活动将重新审核，已有报名保留。</p>' : ''}</form>`;
 }
 function userForm() {
@@ -93,10 +94,11 @@ async function render(query = '') {
     root.innerHTML = '<p class="muted">正在加载…</p>';
     let html;
     if (tab === 'discover') {
-      const result = await api('/activities?q=' + encodeURIComponent(query));
+      const [result, memberships] = await Promise.all([api('/activities?q=' + encodeURIComponent(query)), user?.role === 'STUDENT' ? api('/student/club-memberships') : Promise.resolve([])]);
       if (version !== renderVersion) return;
       events = result;
       html = title('发现活动', `${events.length} 场已发布活动`) + `<form id="search-form" class="search"><input name="q" aria-label="搜索活动或社团" placeholder="搜索活动名称或社团…" value="${esc(query)}"><label>活动日期<input type="date" id="activity-date"></label><label>兴趣分类<select id="activity-category"><option value="">全部</option>${['音乐','运动','学术','艺术','公益','其他'].map(c => `<option>${c}</option>`).join('')}</select></label><button class="button dark">搜索</button></form><p id="filter-summary" role="status"></p>`;
+      if (user?.role === 'STUDENT') html += `<div class="club-overview"><section class="panel"><h3>我的社团</h3><p>${memberships.some(m => m.status === 'APPROVED') ? memberships.filter(m => m.status === 'APPROVED').map(m => esc(m.clubName)).join('、') : '你还没有加入社团'}${memberships.some(m => m.status === 'PENDING') ? `<br>申请审核中：${memberships.filter(m => m.status === 'PENDING').map(m => esc(m.clubName)).join('、')}` : ''}</p><button class="button outline" data-tab="my-clubs">查看我的社团</button></section><section class="panel"><h3>全部社团</h3><p>浏览并选择想加入的社团。</p><button class="button outline" data-tab="all-clubs">浏览全部社团</button></section></div>`;
       html += events.length ? `<div class="grid">${events.map(v => card(v)).join('')}</div>` : empty('暂时没有符合条件的活动');
     } else if (tab === 'posts' || tab === 'club-posts' || tab === 'review-posts') {
       const mine = tab === 'club-posts', reviewing = tab === 'review-posts';
@@ -113,7 +115,7 @@ async function render(query = '') {
     } else if (tab === 'messages') {
       const rows = await api('/messages');
       if (version !== renderVersion) return;
-      html = title('站内消息', '审核、活动变更与取消通知') + (rows.length ? rows.map(m => `<article class="panel"><p>${esc(m.text)}</p><p>${date(m.createdAt)} · ${m.read ? '已读' : '未读'}</p>${m.read ? '' : `<button class="button outline" data-read="${esc(m.id)}">标记已读</button>`}</article>`).join('') : empty('暂无消息'));
+      html = title('站内收件箱', '报名、社团审核、活动变更与取消通知') + (rows.length ? rows.map(m => `<article class="panel"><p>${esc(m.text)}</p><p>${date(m.createdAt)} · ${m.read ? '已读' : '未读'}</p>${m.read ? '' : `<button class="button outline" data-read="${esc(m.id)}">标记已读</button>`}</article>`).join('') : empty('暂无消息'));
     } else if (tab === 'club-application') {
       const rows = await api('/club/applications');
       if (version !== renderVersion) return;
@@ -126,6 +128,21 @@ async function render(query = '') {
       const rows = await api(user.role === 'ADMIN' ? '/admin/staff' : '/teacher/staff');
       if (version !== renderVersion) return;
       html = title('社团负责人名单', `${rows.length} 人`) + (rows.length ? `<div class="panel table-wrap"><table><thead><tr><th>姓名</th><th>账号</th><th>所属社团</th><th>状态</th></tr></thead><tbody>${rows.map(r => `<tr><td>${esc(r.name)}</td><td>${esc(r.username)}</td><td>${esc(clubs.find(c => c.id === r.clubId)?.name || '—')}</td><td>${r.enabled ? '正常' : '已禁用'}</td></tr>`).join('')}</tbody></table></div>` : empty('暂无负责人'));
+    } else if (tab === 'my-clubs' || tab === 'all-clubs') {
+      const membershipRows = await api('/student/club-memberships');
+      if (version !== renderVersion) return;
+      const statusesByClub = new Map(membershipRows.map(m => [m.clubId, m]));
+      const ids = new Set(membershipRows.filter(m => m.status === 'APPROVED').map(m => m.clubId));
+      const all = await api('/clubs');
+      if (version !== renderVersion) return;
+      clubs = all;
+      const rows = tab === 'my-clubs' ? all.filter(c => ids.has(c.id)) : all;
+      const pendingSummary = tab === 'my-clubs' ? membershipRows.filter(m => m.status === 'PENDING').map(m => esc(m.clubName)) : [];
+      html = title(tab === 'my-clubs' ? '我的社团' : '全部社团', `${rows.length} 个社团`) + (pendingSummary.length ? `<p class="panel">申请审核中：${pendingSummary.join('、')}</p>` : '') + (rows.length ? `<div class="grid">${rows.map(c => `<article class="panel"><h3>${esc(c.name)}</h3><p>${ids.has(c.id) ? '已加入' : statusesByClub.get(c.id)?.status === 'PENDING' ? '申请审核中' : statusesByClub.get(c.id)?.status === 'REJECTED' ? `申请未通过：${esc(statusesByClub.get(c.id).reviewComment)}` : '尚未加入'}</p>${!ids.has(c.id) && statusesByClub.get(c.id)?.status !== 'PENDING' ? `<button class="button dark" data-join-club="${esc(c.id)}">申请加入</button>` : ''}</article>`).join('')}</div>` : empty('你还没有加入社团，请前往“全部社团”选择。'));
+    } else if (tab === 'membership-review') {
+      const rows = await api('/club/membership-applications');
+      if (version !== renderVersion) return;
+      html = title('成员审核', `${rows.length} 项待处理`) + (rows.length ? rows.map(m => `<form class="panel membership-review-form" data-id="${esc(m.id)}"><h3>${esc(m.studentName)}</h3><p>申请加入：${esc(m.clubName)} · 申请时间：${date(m.requestedAt)}</p><label>审核意见<textarea name="comment" maxlength="500" placeholder="驳回时必须填写原因"></textarea></label><div class="actions"><button type="submit" name="decision" value="approve" class="button dark">通过申请</button><button type="submit" name="decision" value="reject" class="button danger">驳回申请</button></div></form>`).join('') : empty('暂无待审核的成员申请'));
     } else if (tab === 'registered') {
       const rows = await api('/student/registrations');
       if (version !== renderVersion) return;
@@ -142,7 +159,7 @@ async function render(query = '') {
       events = result;
       html = title('待审核活动', `${events.length} 项待处理`) + (events.length ? `<div class="review-list">${events.map(v => {
         const a = v.activity;
-        return `<form class="panel review-form" data-id="${a.id}"><h3>${esc(a.title)}</h3><span class="badge">${esc(v.clubName)}</span><p>提交人：${esc(v.creatorName)}</p><p>${esc(a.description)}</p><p>地点：${esc(a.location)}<br>参加条件：${esc(a.requirements)}<br>人数上限：${a.capacity}<br>报名截止：${date(a.deadline)}<br>活动开始：${date(a.startsAt)}</p><label>审核意见<textarea name="comment" maxlength="1000" placeholder="驳回时必须填写原因"></textarea></label><div class="actions"><button type="submit" name="decision" value="approve" class="button dark">通过并发布</button><button type="submit" name="decision" value="reject" class="button danger">驳回</button></div></form>`;
+        return `<form class="panel review-form" data-id="${a.id}"><h3>${esc(a.title)}</h3><span class="badge">${esc(v.clubName)}</span><p>提交人：${esc(v.creatorName)}</p><p>${esc(a.description)}</p><p>地点：${esc(a.location)}<br>参加条件：${esc(a.requirements)}${a.membersOnly ? '（仅限本社团成员）' : ''}<br>人数上限：${a.capacity}<br>报名截止：${date(a.deadline)}<br>活动开始：${date(a.startsAt)}</p><label>审核意见<textarea name="comment" maxlength="1000" placeholder="驳回时必须填写原因"></textarea></label><div class="actions"><button type="submit" name="decision" value="approve" class="button dark">通过并发布</button><button type="submit" name="decision" value="reject" class="button danger">驳回</button></div></form>`;
       }).join('')}</div>` : empty('待审核列表为空'));
     } else if (tab === 'approved' || tab === 'admin-events') {
       const admin = tab === 'admin-events';
@@ -173,7 +190,7 @@ function filterActivities() {
   const summary = $('#filter-summary');
   if (summary) summary.textContent = visible ? `显示 ${visible} 场活动` : '没有符合条件的活动，请调整搜索或筛选条件。';
 }
-function showDetail() { const heading = $('#detail-content h2'); if (heading) heading.id = 'detail-title'; $('#detail-dialog').showModal(); }
+function showDetail(mode = '') { const heading = $('#detail-content h2'); if (heading) heading.id = 'detail-title'; $('#detail-dialog').classList.toggle('share-dialog', mode === 'share'); $('#detail-dialog').showModal(); }
 function showAuth(mode, notice = '') {
   const registering = mode === 'register';
   $('#login-form').hidden = registering;
@@ -183,20 +200,22 @@ function showAuth(mode, notice = '') {
   $('#login-error').textContent = '';
   $('#register-error').textContent = '';
   if (registering) {
-    $('#register-club').innerHTML = clubs.map(c => `<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('');
+    $('#register-club').innerHTML = '<option value="">暂无社团，稍后申请</option>' + clubs.map(c => `<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('');
     updateRegisterRole();
   }
 }
 function updateRegisterRole() {
-  const isClub = $('#register-role').value === 'CLUB_STAFF';
-  $('#register-club-field').hidden = !isClub;
+  const role = $('#register-role').value;
+  const isClub = role === 'CLUB_STAFF';
+  $('#register-club-field').hidden = !(isClub || role === 'STUDENT');
+  $('#register-club-label').textContent = isClub ? '所属社团（必选）' : '申请加入社团（可稍后申请）';
   $('#register-club').required = isClub;
 }
 function openLogin() { showAuth('login'); $('#login-dialog').showModal(); }
 function details(id) {
   const v = events.find(v => v.activity.id === id); if (!v) return;
   const a = v.activity;
-  $('#detail-content').innerHTML = `${badge(a.status)}<h2>${esc(a.title)}</h2><p class="muted">${esc(v.clubName)}</p><p class="detail-description">${esc(a.description)}</p><p>地点：${esc(a.location)}<br>参加条件：${esc(a.requirements)}<br>开始时间：${date(a.startsAt)}<br>报名截止：${date(a.deadline)}<br>人数：${v.registeredCount} / ${a.capacity}</p>`;
+  $('#detail-content').innerHTML = `${badge(a.status)}<h2>${esc(a.title)}</h2><p class="muted">${esc(v.clubName)}</p><p class="detail-description">${esc(a.description)}</p><p>地点：${esc(a.location)}<br>参加条件：${esc(a.requirements)}${a.membersOnly ? '（仅限本社团成员）' : ''}<br>开始时间：${date(a.startsAt)}<br>报名截止：${date(a.deadline)}<br>人数：${v.registeredCount} / ${a.capacity}</p>`;
   if (a.status === 'APPROVED') $('#detail-content').insertAdjacentHTML('beforeend', user?.role === 'STUDENT' ? `<button class="button dark" data-register="${esc(a.id)}">报名参加</button>` : !user ? '<button class="button dark" data-login>登录后报名</button>' : '');
   showDetail();
 }
@@ -206,14 +225,14 @@ function shareActivity(id) {
   if (!view) return;
   posterActivity = view;
   const url = new URL('/', location.origin); url.searchParams.set('activity', id);
-  $('#detail-content').innerHTML = `<h2>分享活动</h2><p>${esc(view.activity.title)}</p><p>活动链接：<a href="${esc(url.href)}">${esc(url.href)}</a></p><p>二维码使用当前网站地址；本机地址只能在本机访问。</p><div id="share-qr" aria-label="活动链接二维码"></div><button id="poster-download" class="button dark">下载活动海报</button>`;
+  $('#detail-content').innerHTML = `<h2>分享活动</h2><p>${esc(view.activity.title)}</p><p>活动链接：<a href="${esc(url.href)}">${esc(url.href)}</a></p><div id="share-qr" aria-label="活动链接二维码"></div><button id="poster-download" class="button dark">下载活动海报</button>`;
   new QRCode($('#share-qr'), { text: url.href, width: 180, height: 180, correctLevel: QRCode.CorrectLevel.M });
-  showDetail();
+  showDetail('share');
 }
 function downloadPoster() {
   if (!posterActivity) return;
   const a = posterActivity.activity, canvas = document.createElement('canvas'); canvas.width = 900; canvas.height = 1200;
-  const ctx = canvas.getContext('2d'); ctx.fillStyle = '#f3f6e8'; ctx.fillRect(0, 0, 900, 1200);
+  const ctx = canvas.getContext('2d'); ctx.fillStyle = '#e6ebdc'; ctx.fillRect(0, 0, 900, 1200);
   ctx.fillStyle = '#203b2d'; ctx.font = 'bold 54px sans-serif';
   const wrap = (text, x, y, width, lineHeight) => { let line = ''; for (const ch of text) { const next = line + ch; if (ctx.measureText(next).width > width && line) { ctx.fillText(line, x, y); y += lineHeight; line = ch; } else line = next; } ctx.fillText(line, x, y); return y + lineHeight; };
   let y = wrap(a.title, 70, 130, 760, 75); ctx.font = '30px sans-serif';
@@ -243,11 +262,12 @@ document.addEventListener('click', async event => {
   if (d.read) { try { await api(`/messages/${d.read}/read`, { method: 'PATCH' }); await render(); } catch (error) { toast(error.message); } return; }
   if (button.id === 'poster-download') { downloadPoster(); return; }
   if (d.edit) { const found = events.find(v => v.activity.id === d.edit); if (found) { $('#workspace').innerHTML = activityForm(found.activity); $('#workspace h2')?.focus(); } return; }
-  if (!(d.register || d.cancel || d.participants || d.adminParticipants || d.enable || button.id === 'logout')) return;
+  if (!(d.register || d.cancel || d.participants || d.adminParticipants || d.enable || d.joinClub || button.id === 'logout')) return;
   button.disabled = true;
   try {
     if (button.id === 'logout') { await api('/auth/logout', { method: 'POST' }); user = null; tab = 'discover'; }
-    if (d.register) { await api(`/activities/${d.register}/registrations`, { method: 'POST' }); if ($('#detail-dialog').open) $('#detail-dialog').close(); toast('报名成功，可以在“我的报名”中查看'); }
+    if (d.joinClub) { await api(`/student/clubs/${d.joinClub}/join`, { method: 'POST' }); toast('申请已提交，请等待社团负责人审核'); }
+    if (d.register) { await api(`/activities/${d.register}/registrations`, { method: 'POST' }); if ($('#detail-dialog').open) $('#detail-dialog').close(); toast('报名成功，可以在“我的报名”和站内消息中查看'); }
     if (d.cancel) {
       if (!confirm('确认取消此活动？已报名学生将看到“已取消”状态。')) return;
       await api(`/club/activities/${d.cancel}/cancel`, { method: 'POST' }); toast('活动已取消');
@@ -284,7 +304,7 @@ document.addEventListener('submit', async event => {
   const data = Object.fromEntries(new FormData(form));
   if (form.id === 'search-form') { const day = $('#activity-date').value, category = $('#activity-category').value; await render(data.q); if ($('#activity-date')) { $('#activity-date').value = day; $('#activity-category').value = category; filterActivities(); } return; }
   const submit = event.submitter;
-  if (form.matches('.review-form, .post-review-form, .club-review-form, .account-review-form') && submit?.value === 'reject' && !data.comment.trim()) { toast('驳回时请填写审核意见'); form.elements.comment.focus(); return; }
+  if (form.matches('.review-form, .post-review-form, .club-review-form, .account-review-form, .membership-review-form') && submit?.value === 'reject' && !data.comment.trim()) { toast('驳回时请填写审核意见'); form.elements.comment.focus(); return; }
   if (submit) submit.disabled = true;
   try {
     if (form.id === 'login-form') {
@@ -294,15 +314,20 @@ document.addEventListener('submit', async event => {
     } else if (form.id === 'register-form') {
       if (data.password !== data.confirmPassword) { $('#register-error').textContent = '两次输入的密码不一致'; form.elements.confirmPassword.focus(); return; }
       const nickname = data.nickname.trim();
-      const result = await api('/auth/register', { method: 'POST', body: { nickname, role: data.role, password: data.password, clubId: data.role === 'CLUB_STAFF' ? data.clubId : null } });
+      const result = await api('/auth/register', { method: 'POST', body: { nickname, role: data.role, password: data.password, clubId: ['CLUB_STAFF', 'STUDENT'].includes(data.role) && data.clubId ? data.clubId : null } });
       form.reset(); $('#login-form').elements.username.value = nickname; $('#login-form').elements.password.value = '';
       showAuth('login', result.message); $('#login-form').elements.password.focus(); return;
+    } else if (form.classList.contains('membership-review-form')) {
+      const approved = submit?.value === 'approve';
+      await api(`/club/membership-applications/${form.dataset.id}/review`, { method: 'POST', body: { approved, comment: data.comment } });
+      toast(approved ? '已通过成员申请，欢迎消息已发送' : '已驳回成员申请，结果已通知学生');
     } else if (form.classList.contains('account-review-form')) {
       const approved = submit?.value === 'approve';
       const result = await api(`/admin/account-applications/${form.dataset.id}/decision`, { method: 'POST', body: { approved, comment: data.comment } });
       toast(result.message);
     } else if (form.id === 'activity-form') {
       data.capacity = Number(data.capacity);
+      data.membersOnly = form.elements.membersOnly.checked;
       await api(form.dataset.id ? `/club/activities/${form.dataset.id}` : '/club/activities', { method: form.dataset.id ? 'PUT' : 'POST', body: data });
       tab = 'club'; toast('活动已提交，等待老师审核');
     } else if (form.id === 'post-form') {

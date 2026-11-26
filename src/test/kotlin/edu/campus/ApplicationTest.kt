@@ -137,4 +137,36 @@ class ApplicationTest {
         assertEquals(Role.TEACHER, login("新教师", "password123").body<PublicUser>().role)
         assertEquals(HttpStatusCode.Forbidden, browser.get("/api/admin/users").status)
     }
+    @Test fun `membership approval and restricted signup produce private inbox messages`() = testApplication {
+        application { campusModule(LocalRepository(directory.resolve("club-members.json"))) }
+        val browser = createClient { install(ContentNegotiation) { json() }; install(HttpCookies) }
+        suspend fun login(name: String) = browser.post("/api/auth/login") { contentType(ContentType.Application.Json); setBody(LoginRequest(name, "demo1234")) }
+        assertEquals(HttpStatusCode.Created, browser.post("/api/auth/register") {
+            contentType(ContentType.Application.Json); setBody(RegisterRequest("新成员", "password123", Role.STUDENT, "guitar"))
+        }.status)
+        assertEquals(HttpStatusCode.OK, browser.post("/api/auth/login") { contentType(ContentType.Application.Json); setBody(LoginRequest("新成员", "password123")) }.status)
+        assertTrue(browser.get("/api/student/clubs").body<List<Club>>().isEmpty())
+        assertEquals(MembershipStatus.PENDING, browser.get("/api/student/club-memberships").body<List<MembershipView>>().single().status)
+        assertEquals(HttpStatusCode.Forbidden, browser.get("/api/club/membership-applications").status)
+        assertEquals(HttpStatusCode.OK, login("club").status)
+        val pending = browser.get("/api/club/membership-applications").body<List<MembershipView>>().single()
+        assertEquals(HttpStatusCode.OK, browser.post("/api/club/membership-applications/${pending.id}/review") {
+            contentType(ContentType.Application.Json); setBody(ReviewRequest(true))
+        }.status)
+        val event = browser.post("/api/club/activities") {
+            contentType(ContentType.Application.Json)
+            setBody(ActivityRequest("仅会员活动", "活动介绍", "活动中心", "会员", 5, "2099-01-01T12:00", "2099-01-02T12:00", membersOnly = true))
+        }.body<Activity>()
+        assertEquals(HttpStatusCode.OK, login("teacher").status)
+        assertEquals(HttpStatusCode.OK, browser.get("/api/messages").status)
+        browser.post("/api/teacher/activities/${event.id}/review") { contentType(ContentType.Application.Json); setBody(ReviewRequest(true)) }
+        assertEquals(HttpStatusCode.OK, login("admin").status)
+        assertEquals(HttpStatusCode.OK, browser.get("/api/messages").status)
+        assertEquals(HttpStatusCode.OK, browser.post("/api/auth/login") { contentType(ContentType.Application.Json); setBody(LoginRequest("新成员", "password123")) }.status)
+        assertEquals(1, browser.get("/api/student/clubs").body<List<Club>>().size)
+        assertEquals(HttpStatusCode.Created, browser.post("/api/activities/${event.id}/registrations").status)
+        val messages = browser.get("/api/messages").body<List<Notification>>()
+        assertTrue(messages.any { it.text.contains("欢迎加入") })
+        assertTrue(messages.any { it.text.contains("恭喜成功报名") })
+    }
 }
