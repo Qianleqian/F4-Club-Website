@@ -6,7 +6,7 @@
 
 代码位于仓库根目录。`main` 为基础版，四位成员分别使用 `feature/student`、`feature/club`、`feature/teacher`、`feature/admin`。每条分支均含完整项目。详细分工、运行和 PR 流程见 [四人协作说明](docs/07-team-collaboration.md)。
 
-注册及管理员审核使用说明见 [账号注册与管理员审核](docs/10-account-registration.md)。
+注册及管理员审核使用说明见 [账号注册与管理员审核](docs/10-account-registration.md)，社团成员审核与站内收件箱见 [社团成员审核与站内收件箱](docs/11-club-membership-inbox.md)。
 
 ## 当前可以演示的流程
 
